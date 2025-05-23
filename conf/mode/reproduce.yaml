@@ -1,0 +1,41 @@
+# Configuration for paper results reproduction mode
+mode: reproduce
+
+dataset:
+  name: benchmark  # Dataset containing instances from the paper
+  path: data
+
+# Reproduction configuration
+reproduction:
+  # Specific instances to reproduce from the paper
+  instances:
+    - dataset: benchmark
+      id: bench_001_small_sequential_uniform_80
+    - dataset: benchmark
+      id: bench_005_small_parallel_uniform_80
+    - dataset: benchmark
+      id: bench_010_medium_mixed_uniform_70
+    - dataset: benchmark
+      id: bench_015_medium_assembly_normal_80
+  
+  # Algorithm settings as reported in the paper
+  algorithm:
+    pop_size: 100
+    max_iterations: 200
+    crossover_prob: 0.85
+    mutation_prob: 0.15
+    gns_levels: 3
+    max_time: 600  # 10 minutes
+  
+  # Results reported in the paper for comparison
+  reported_results:
+    - instance_id: bench_001_small_sequential_uniform_80
+      makespan: 42.5
+    - instance_id: bench_005_small_parallel_uniform_80
+      makespan: 38.2
+    - instance_id: bench_010_medium_mixed_uniform_70
+      makespan: 67.3
+    - instance_id: bench_015_medium_assembly_normal_80
+      makespan: 73.8
+
+# Results will be saved to reproduction_results.csv 

@@ -1,0 +1,22 @@
+# Configuration for visualization mode
+mode: visualize
+
+# Enable all visualization features
+visualization:
+  enabled: true
+  figsize: [12, 8]  # Larger figures for better quality
+  save_formats: [png, pdf, svg]  # Add SVG for vector graphics
+  save_path: figures
+  dataset_stats: true
+  gantt_charts: true
+  max_gantt_charts: 10
+  convergence_plot: true
+  comparative_methods: true  # Enable comparative visualization
+
+# Dataset configuration
+dataset:
+  name: benchmark
+  path: data
+  size_filter: null  # No size filter
+  pattern_filter: null  # No pattern filter
+  max_instances: 50 

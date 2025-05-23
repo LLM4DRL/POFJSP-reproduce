@@ -1,0 +1,92 @@
+# POFJSP Reproduction Configuration
+
+# Global configuration
+random_seed: 42
+mode: evaluate  # Options: generate, evaluate, reproduce, visualize
+
+# Algorithm configuration
+algorithm:
+  pop_size: 50
+  max_iterations: 100
+  crossover_prob: 0.8
+  mutation_prob: 0.2
+  gns_levels: 3  # Number of levels in Grade Neighborhood Search
+  max_time: 300  # Maximum running time in seconds
+
+# Dataset configuration
+dataset:
+  name: benchmark  # Default dataset to use
+  path: data  # Path to datasets relative to workspace
+  size_filter: medium  # Filter by size (tiny, small, medium, large, etc.)
+  pattern_filter: null  # Filter by precedence pattern (null = no filter)
+  max_instances: 50  # Maximum instances to load
+  instances_per_config: 10  # When generating datasets
+  
+  # Dataset configurations for generation
+  configurations:
+    - name: "config_001_small_mixed_uniform"
+      size_config: small
+      precedence_pattern: mixed
+      time_distribution: uniform
+      machine_capability_prob: 0.8
+    
+    - name: "config_002_medium_parallel_normal"
+      size_config: medium
+      precedence_pattern: parallel
+      time_distribution: normal
+      machine_capability_prob: 0.7
+
+# Reproduction configuration
+reproduction:
+  # Specific instances to reproduce from the paper
+  instances:
+    - dataset: benchmark
+      id: bench_001_small_sequential_uniform_80
+    - dataset: benchmark
+      id: bench_005_small_parallel_uniform_80
+  
+  # Algorithm settings as reported in the paper
+  algorithm:
+    pop_size: 100
+    max_iterations: 200
+    crossover_prob: 0.85
+    mutation_prob: 0.15
+  
+  # Results reported in the paper for comparison
+  reported_results:
+    - instance_id: bench_001_small_sequential_uniform_80
+      makespan: 42.5
+    - instance_id: bench_005_small_parallel_uniform_80
+      makespan: 38.2
+
+# Visualization settings
+visualization:
+  enabled: true  # Enable/disable visualization generation
+  figsize: [10, 6]  # Default figure size [width, height]
+  save_formats: [png, pdf]  # Output formats
+  save_path: figures  # Base path for saving figures
+  dataset_stats: true  # Generate dataset statistics visualizations
+  gantt_charts: true  # Generate Gantt charts for schedules
+  max_gantt_charts: 5  # Maximum number of Gantt charts to generate
+  convergence_plot: true  # Generate convergence plots
+  comparative_methods: false  # Enable comparative method visualization
+
+# Comparative methods for visualization
+# Only used if visualization.comparative_methods is true
+comparative_methods:
+  - name: "Basic IAO"
+    pop_size: 50
+    max_iterations: 100
+    crossover_prob: 0.8
+    mutation_prob: 0.2
+  
+  - name: "IAO+GNS"
+    pop_size: 100
+    max_iterations: 200
+    crossover_prob: 0.85
+    mutation_prob: 0.15
+
+# Logging configuration
+logging:
+  level: info
+  save_path: logs 

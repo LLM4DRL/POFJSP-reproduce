@@ -1,0 +1,47 @@
+# Configuration for the benchmark dataset
+dataset:
+  name: benchmark
+  path: data
+  size_filter: null  # No size filter
+  pattern_filter: null  # No pattern filter
+  max_instances: 50
+
+# Benchmark dataset generation configurations
+  configurations:
+    # Small instances
+    - name: "bench_001_small_sequential_uniform_80"
+      size_config: small
+      precedence_pattern: sequential
+      time_distribution: uniform
+      machine_capability_prob: 0.8
+    
+    - name: "bench_002_small_sequential_normal_80"
+      size_config: small
+      precedence_pattern: sequential
+      time_distribution: normal
+      machine_capability_prob: 0.8
+    
+    - name: "bench_005_small_parallel_uniform_80"
+      size_config: small
+      precedence_pattern: parallel
+      time_distribution: uniform
+      machine_capability_prob: 0.8
+
+    - name: "bench_006_small_assembly_uniform_70"
+      size_config: small
+      precedence_pattern: assembly
+      time_distribution: uniform
+      machine_capability_prob: 0.7
+      
+    # Medium instances
+    - name: "bench_010_medium_mixed_uniform_70"
+      size_config: medium
+      precedence_pattern: mixed
+      time_distribution: uniform
+      machine_capability_prob: 0.7
+      
+    - name: "bench_015_medium_assembly_normal_80"
+      size_config: medium
+      precedence_pattern: assembly
+      time_distribution: normal
+      machine_capability_prob: 0.8 

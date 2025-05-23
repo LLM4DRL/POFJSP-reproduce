@@ -1,0 +1,41 @@
+# Custom experiment configuration
+# Example of a customized configuration for specific experiments
+
+# Inherit from base config
+defaults:
+  - config
+  - _self_
+
+# Override settings
+mode: evaluate
+random_seed: 123  # Different seed for reproducibility
+
+# Custom algorithm settings with more iterations and population
+algorithm:
+  pop_size: 200
+  max_iterations: 500
+  crossover_prob: 0.9
+  mutation_prob: 0.1
+  gns_levels: 3
+  max_time: 1800  # 30 minutes
+
+# Dataset focus on large instances
+dataset:
+  name: benchmark
+  path: data
+  size_filter: large  # Only large instances
+  pattern_filter: mixed  # Only mixed pattern
+  complexity_range: [300, 1000]  # Higher complexity
+  max_instances: 20  # Fewer instances due to longer runtime
+
+# Custom visualization settings
+visualization:
+  figsize: [12, 8]  # Larger figures
+  save_formats: [png, pdf, svg]  # Additional SVG format
+  save_path: figures/custom_experiment
+  
+# Custom experiment description
+experiment:
+  name: "high_complexity_large_instances"
+  description: "Testing algorithm performance on large, complex instances with extended runtime"
+  tags: ["large", "mixed", "high_complexity"] 

@@ -1,0 +1,101 @@
+# Python-related
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+.env
+.venv
+env.bak/
+venv.bak/
+.python-version
+.conda/
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+.project
+.pydevproject
+.spyderproject
+.spyproject
+.ropeproject
+.coverage
+htmlcov/
+.tox/
+.nox/
+.coverage.*
+.cache/
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# OS specific files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Project specific output directories
+logs/*
+!logs/.gitkeep
+outputs/*/
+!outputs/.gitkeep
+
+# Generated results
+*.csv
+results_*.csv
+!data/results/  # Keep benchmark results directory
+
+# Hydra outputs
+.hydra/
+multirun/
+
+# Large data files
+*.pkl
+*.npy
+*.npz
+*.parquet
+*.feather
+*.h5
+*.hdf5
+*.dta
+
+# Allow all PDFs in paper documentation
+!papers/*.pdf
+!docs/papers/*.pdf
+!docs/**/*.pdf
+!paper.pdf
+!papers.pdf
+!docs/paper.pdf
+
+# Keep README files
+!**/README.md 
+
+# Data
+data/
+
+# Visualization
+visualization/
+figures/

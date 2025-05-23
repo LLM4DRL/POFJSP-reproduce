@@ -1,0 +1,24 @@
+# Configuration for dev_experiment dataset
+# A minimal dataset for quick experiments
+
+dataset:
+  name: dev_experiment
+  path: data
+  size_filter: tiny  # Only tiny instances for quick testing
+  pattern_filter: null  # No pattern filter
+  max_instances: 10
+  instances_per_config: 3  # Only generate 3 instances per config for speed
+  
+  # Minimal configurations for quick experiments
+  configurations:
+    - name: "dev_001_tiny_seq"
+      size_config: tiny
+      precedence_pattern: sequential
+      time_distribution: uniform
+      machine_capability_prob: 0.8
+    
+    - name: "dev_002_tiny_parallel"
+      size_config: tiny
+      precedence_pattern: parallel
+      time_distribution: uniform
+      machine_capability_prob: 0.8 
