@@ -93,9 +93,10 @@ multirun/
 # Keep README files
 !**/README.md 
 
-# Data
-data/
+# Data - except results
+data/*
+!data/results/
 
-# Visualization
-visualization/
-figures/
+# Sample visualization output
+# Don't ignore figures directory, we want to keep visualization code & outputs
+visualization/output/
