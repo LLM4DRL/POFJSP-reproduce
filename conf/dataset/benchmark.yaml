@@ -1,10 +1,11 @@
 # Configuration for the benchmark dataset
 dataset:
   name: benchmark
-  path: data
+  path: data  # Path to datasets relative to workspace
   size_filter: null  # No size filter
   pattern_filter: null  # No pattern filter
   max_instances: 50
+  instances_per_config: 10  # When generating datasets
 
 # Benchmark dataset generation configurations
   configurations:

@@ -1,6 +1,7 @@
 # Configuration for paper results reproduction mode
 mode: reproduce
 
+# Dataset configuration - will be merged with selected dataset config
 dataset:
   name: benchmark  # Dataset containing instances from the paper
   path: data

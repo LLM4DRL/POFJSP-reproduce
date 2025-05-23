@@ -12,6 +12,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from typing import Dict, List, Optional
 import logging
+import hydra
 
 from data_loader import POFJSPDataLoader
 from algorithms import iaoa_gns_algorithm, ProblemInstance, Solution
@@ -86,7 +87,8 @@ def visualize_results(cfg, results_df: pd.DataFrame):
     )
     
     # For reproduction mode, add comparison visualization
-    if cfg.mode == "reproduce" and 'reported_makespan' in results_df.columns:
+    mode = cfg.mode.mode if hasattr(cfg, 'mode') and hasattr(cfg.mode, 'mode') else "evaluate"
+    if mode == "reproduce" and 'reported_makespan' in results_df.columns:
         plot_reproduction_comparison(
             results_df=results_df,
             output_dir=str(output_dir),
@@ -132,11 +134,9 @@ def visualize_schedules(cfg, results_list: List[Dict], data_dir: Path):
             
             # Get solution (need to rerun algorithm)
             solution = iaoa_gns_algorithm(
-                problem_instance=problem_instance,
+                problem=problem_instance,
                 pop_size=cfg.algorithm.pop_size,
-                max_iterations=cfg.algorithm.max_iterations,
-                crossover_prob=cfg.algorithm.crossover_prob,
-                mutation_prob=cfg.algorithm.mutation_prob
+                max_iterations=cfg.algorithm.max_iterations
             )
             
             # Visualize solution
@@ -196,16 +196,12 @@ def visualize_comparative_methods(cfg, data_dir: Path):
                 # Configure algorithm parameters based on method
                 pop_size = method.pop_size
                 max_iterations = method.max_iterations
-                crossover_prob = method.crossover_prob
-                mutation_prob = method.mutation_prob
                 
                 # Run algorithm
                 solution = iaoa_gns_algorithm(
-                    problem_instance=problem_instance,
+                    problem=problem_instance,
                     pop_size=pop_size,
-                    max_iterations=max_iterations,
-                    crossover_prob=crossover_prob,
-                    mutation_prob=mutation_prob
+                    max_iterations=max_iterations
                 )
                 
                 # Store solution with method name
@@ -236,7 +232,7 @@ def run_visualization(cfg, results=None):
         results: Optional results DataFrame or list (if not provided, will load from file)
     """
     # Set up paths
-    orig_dir = cfg.original_cwd if hasattr(cfg, 'original_cwd') else os.getcwd()
+    orig_dir = hydra.utils.get_original_cwd()
     data_dir = Path(orig_dir) / cfg.dataset.path
     
     # Configure matplotlib based on config
@@ -261,9 +257,12 @@ def run_visualization(cfg, results=None):
             print(f"Unsupported results format: {type(results)}")
     else:
         # Try to load results from file
-        if cfg.mode == "evaluate":
+        # Get current mode
+        mode = cfg.mode.mode if hasattr(cfg, 'mode') and hasattr(cfg.mode, 'mode') else "evaluate"
+        
+        if mode == "evaluate":
             results_file = f"results_{cfg.dataset.name}.csv"
-        elif cfg.mode == "reproduce":
+        elif mode == "reproduce":
             results_file = "reproduction_results.csv"
         else:
             results_file = None

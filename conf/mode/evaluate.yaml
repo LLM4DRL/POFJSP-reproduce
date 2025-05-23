@@ -1,6 +1,7 @@
 # Configuration for algorithm evaluation mode
 mode: evaluate
 
+# Dataset configuration - will be overridden if dataset config is selected
 dataset:
   name: benchmark  # Default dataset to use
   path: data  # Path to datasets relative to workspace
@@ -9,6 +10,7 @@ dataset:
   complexity_range: [50, 500]  # Optional complexity range filter
   max_instances: 30  # Maximum instances to evaluate
 
+# Algorithm configuration
 algorithm:
   pop_size: 50
   max_iterations: 100

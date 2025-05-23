@@ -1,8 +1,13 @@
 # POFJSP Reproduction Configuration
 
+# Set default configurations
+defaults:
+  - mode: evaluate  # Default to evaluate mode
+  - dataset: benchmark  # Default dataset
+  - _self_  # Include config.yaml last to override defaults
+
 # Global configuration
 random_seed: 42
-mode: evaluate  # Options: generate, evaluate, reproduce, visualize
 
 # Algorithm configuration
 algorithm:

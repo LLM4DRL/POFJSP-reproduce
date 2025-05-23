@@ -44,41 +44,43 @@ def main(cfg: DictConfig):
     print(f"Configuration:\n{OmegaConf.to_yaml(cfg)}")
     print(f"{'='*50}")
     
-    # Store original working directory in config for use by other modules
-    cfg.original_cwd = hydra.utils.get_original_cwd()
+    # Store original working directory for use by other modules
+    original_cwd = hydra.utils.get_original_cwd()
+    
+    # Get mode from config
+    mode = cfg.mode.mode if hasattr(cfg, 'mode') and hasattr(cfg.mode, 'mode') else "evaluate"
     
     # Ensure compatibility with original code paths
-    orig_dir = cfg.original_cwd
-    data_dir = Path(orig_dir) / cfg.dataset.path
+    data_dir = Path(original_cwd) / cfg.dataset.path
     
     # Determine operation mode
-    if cfg.mode == "generate":
-        _generate_dataset(cfg)
+    if mode == "generate":
+        instances = _generate_dataset(cfg)
         
         # Visualize the generated dataset if requested
         if cfg.visualization.dataset_stats:
             visualize.visualize_dataset(cfg, data_dir)
             
-    elif cfg.mode == "evaluate":
+    elif mode == "evaluate":
         results = _evaluate_algorithm(cfg)
         
         # Visualize results if requested
         if cfg.visualization.enabled:
             visualize.run_visualization(cfg, results)
             
-    elif cfg.mode == "reproduce":
+    elif mode == "reproduce":
         results = _reproduce_results(cfg)
         
         # Visualize comparison if requested
         if cfg.visualization.enabled:
             visualize.run_visualization(cfg, results)
             
-    elif cfg.mode == "visualize":
+    elif mode == "visualize":
         # Run only visualization for existing results
         visualize.run_visualization(cfg)
         
     else:
-        raise ValueError(f"Unknown mode: {cfg.mode}")
+        raise ValueError(f"Unknown mode: {mode}")
     
     print(f"\n✅ Execution completed successfully!")
     return 0
@@ -166,12 +168,9 @@ def _evaluate_algorithm(cfg: DictConfig):
         
         # Run algorithm
         solution = iaoa_gns_algorithm(
-            problem_instance=problem,
+            problem=problem,
             pop_size=pop_size,
-            max_iterations=max_iterations,
-            crossover_prob=crossover_prob,
-            mutation_prob=mutation_prob,
-            track_convergence=track_convergence
+            max_iterations=max_iterations
         )
         
         # Calculate execution time
@@ -256,11 +255,9 @@ def _reproduce_results(cfg: DictConfig):
         
         # Run algorithm
         solution = iaoa_gns_algorithm(
-            problem_instance=problem,
+            problem=problem,
             pop_size=pop_size,
-            max_iterations=max_iterations,
-            crossover_prob=crossover_prob,
-            mutation_prob=mutation_prob
+            max_iterations=max_iterations
         )
         
         # Record results

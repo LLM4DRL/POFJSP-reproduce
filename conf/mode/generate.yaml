@@ -1,6 +1,7 @@
 # Configuration for dataset generation mode
 mode: generate
 
+# Dataset configuration - will be merged with selected dataset config
 dataset:
   name: development  # Name of the dataset to generate
   path: data  # Path to datasets relative to workspace
