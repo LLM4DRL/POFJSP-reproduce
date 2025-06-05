@@ -31,44 +31,166 @@ def create_gantt_chart(solution: Solution,
     Args:
         solution: A Solution object containing the schedule
         problem_instance: The ProblemInstance used to generate the solution
-        title: Custom title for the chart. If None, a default title is used.
-        fig_size: Figure size as (width, height) in inches
-        bar_height: Height of each bar in the chart
-        save_path: Path to save the figure. If None, the figure is not saved.
-        show_critical_path: Whether to highlight the critical path in the schedule
-        color_by: How to color the bars ('job', 'machine', or 'operation')
-        instance_id: Optional identifier for the instance being visualized
+        title: Custom title for the chart. If None, a default title will be generated.
+        fig_size: Figure size (width, height) in inches
+        bar_height: Height of bars in the chart
+        save_path: If provided, the chart will be saved to this path
+        show_critical_path: Whether to highlight the critical path
+        color_by: How to color the operations ('job', 'machine', or 'operation')
+        instance_id: Optional instance ID to include in the title
         
     Returns:
-        A matplotlib figure object
+        The matplotlib Figure object
     """
     # Extract necessary data from solution
     machine_schedules = solution.machine_schedules
-    
-    # Calculate total number of machines
     num_machines = problem_instance.num_machines
     
     # Create figure and axis
     fig, ax = plt.subplots(figsize=fig_size)
     
-    # Map of job indices to colors
-    cmap = plt.cm.get_cmap('tab20', problem_instance.num_jobs)
-    job_colors = {j: cmap(j) for j in range(problem_instance.num_jobs)}
-    
-    # Map of machine indices to colors
-    cmap_machines = plt.cm.get_cmap('viridis', problem_instance.num_machines)
-    machine_colors = {m: cmap_machines(m) for m in range(problem_instance.num_machines)}
-    
-    # Track the operations on the critical path if needed
+    # Get critical operations if available
     critical_ops = set()
     if show_critical_path and hasattr(solution, 'critical_path'):
         critical_ops = set(solution.critical_path)
     
+    # Define color maps
+    cmap = plt.cm.get_cmap('tab20', problem_instance.num_jobs)
+    job_colors = {j: cmap(j) for j in range(problem_instance.num_jobs)}
+    
+    cmap_machines = plt.cm.get_cmap('viridis', problem_instance.num_machines)
+    machine_colors = {m: cmap_machines(m) for m in range(problem_instance.num_machines)}
+    
+    # Count for summary warnings
+    int_operations_count = 0
+    invalid_format_count = 0
+    
+    # Build a mapping from operation indices to job indices
+    # This helps when dealing with integer operations
+    op_to_job_map = {}
+    
+    if hasattr(solution, 'operation_sequence') and hasattr(solution, 'machine_assignment'):
+        # If solution has operation_sequence, we can build a more accurate mapping
+        for i, op in enumerate(solution.operation_sequence):
+            if hasattr(op, 'job_idx'):
+                op_to_job_map[i] = op.job_idx
+    
+    # Job-to-machine count to analyze distribution
+    job_machine_count = {}
+    for j in range(problem_instance.num_jobs):
+        job_machine_count[j] = {m: 0 for m in range(problem_instance.num_machines)}
+    
+    # First pass: count job distribution across machines
+    for machine_idx, schedule in enumerate(machine_schedules):
+        for operation_data in schedule:
+            if len(operation_data) >= 3:
+                _, _, operation = operation_data[0], operation_data[1], operation_data[2]
+                
+                job_idx = None
+                if not isinstance(operation, int) and hasattr(operation, 'job_idx'):
+                    job_idx = operation.job_idx
+                elif isinstance(operation, int) and operation in op_to_job_map:
+                    job_idx = op_to_job_map[operation]
+                elif isinstance(operation, int):
+                    # Try to infer job index from operation index for sequential operations
+                    # Assuming each job has roughly equal number of operations
+                    estimated_ops_per_job = problem_instance.total_operations // problem_instance.num_jobs
+                    if estimated_ops_per_job > 0:
+                        estimated_job_idx = operation // estimated_ops_per_job
+                        if estimated_job_idx < problem_instance.num_jobs:
+                            job_idx = estimated_job_idx
+                            # Remember this mapping for future reference
+                            op_to_job_map[operation] = job_idx
+                
+                if job_idx is not None:
+                    job_machine_count[job_idx][machine_idx] += 1
+    
+    # Calculate job distribution statistics
+    job_distribution_info = []
+    jobs_on_single_machine = 0
+    jobs_distributed = 0
+    
+    for j, machine_counts in job_machine_count.items():
+        # Skip jobs with no operations
+        if sum(machine_counts.values()) == 0:
+            continue
+            
+        machines_used = sum(1 for count in machine_counts.values() if count > 0)
+        total_ops = sum(machine_counts.values())
+        
+        if machines_used == 1 and total_ops > 1:
+            # All operations of this job are on a single machine
+            machine_idx = next(m for m, count in machine_counts.items() if count > 0)
+            job_distribution_info.append(f"Job {j}: All {total_ops} ops on Machine {machine_idx}")
+            jobs_on_single_machine += 1
+        elif machines_used > 1:
+            # Operations are distributed
+            job_distribution_info.append(f"Job {j}: {total_ops} ops across {machines_used} machines")
+            jobs_distributed += 1
+    
+    # Print job distribution info
+    print(f"\nJOB DISTRIBUTION ANALYSIS FOR {instance_id if instance_id else 'SOLUTION'}:")
+    if jobs_on_single_machine > 0:
+        print(f"WARNING: {jobs_on_single_machine} jobs have all operations on a single machine!")
+    print(f"GOOD: {jobs_distributed} jobs have operations distributed across multiple machines")
+    
+    for info in job_distribution_info:
+        print(f"  {info}")
+        
     # Plot each operation as a rectangle
     for machine_idx, schedule in enumerate(machine_schedules):
         y_position = num_machines - machine_idx - 1  # Reverse order for visual clarity
         
-        for op_start, op_end, operation in schedule:
+        for operation_data in schedule:
+            # Fix the unpacking issue - ensure we always have at least op_start, op_end, operation
+            if len(operation_data) >= 3:
+                op_start, op_end, operation = operation_data[0], operation_data[1], operation_data[2]
+            else:
+                # Skip if we don't have enough data
+                invalid_format_count += 1
+                continue
+            
+            # Check if operation is an int (operation ID) instead of an Operation object
+            if isinstance(operation, int):
+                int_operations_count += 1
+                
+                # Try to determine the job this operation belongs to
+                job_idx = op_to_job_map.get(operation)
+                
+                # Choose color based on job or machine
+                if job_idx is not None and color_by == 'job':
+                    color = job_colors[job_idx]
+                else:  # Default to machine color if job can't be determined
+                    color = machine_colors[machine_idx]
+                
+                rect = patches.Rectangle(
+                    (op_start, y_position - bar_height/2),
+                    op_end - op_start,
+                    bar_height,
+                    edgecolor='black',
+                    facecolor=color,
+                    alpha=0.8,
+                    linewidth=1
+                )
+                ax.add_patch(rect)
+                
+                # Add label
+                label_text = f"Op {operation}"
+                if job_idx is not None:
+                    label_text = f"J{job_idx}-Op{operation}"
+                
+                ax.text(
+                    (op_start + op_end) / 2,
+                    y_position,
+                    label_text,
+                    ha='center',
+                    va='center',
+                    fontsize=8,
+                    fontweight='bold',
+                    color='white'
+                )
+                continue
+            
             # Choose color based on job or machine
             if color_by == 'job':
                 color = job_colors[operation.job_idx]
@@ -114,6 +236,13 @@ def create_gantt_chart(solution: Solution,
                     linestyle='--'
                 )
                 ax.add_patch(rect_critical)
+    
+    # Print summary warnings instead of individual warnings
+    if int_operations_count > 0:
+        print(f"Note: Found {int_operations_count} integer operations instead of Operation objects in {instance_id}")
+    
+    if invalid_format_count > 0:
+        print(f"Note: Found {invalid_format_count} operations with invalid data format in {instance_id}")
     
     # Set chart properties
     ax.set_xlim(0, solution.makespan * 1.05)  # Add some padding
@@ -243,7 +372,15 @@ def visualize_comparative_schedules(solutions: Dict[str, Solution],
     cmap = plt.cm.get_cmap('tab20', problem_instance.num_jobs)
     job_colors = {j: cmap(j) for j in range(problem_instance.num_jobs)}
     
+    # Map of machine indices to colors for integer operations
+    cmap_machines = plt.cm.get_cmap('viridis', problem_instance.num_machines)
+    machine_colors = {m: cmap_machines(m) for m in range(problem_instance.num_machines)}
+    
     max_makespan = max(sol.makespan for sol in solutions.values()) * 1.05
+    
+    # Count for summary warnings
+    total_int_operations = 0
+    total_invalid_format = 0
     
     for i, (method_name, solution) in enumerate(solutions.items()):
         if i >= len(axes):
@@ -254,11 +391,53 @@ def visualize_comparative_schedules(solutions: Dict[str, Solution],
         num_machines = problem_instance.num_machines
         bar_height = 0.8
         
+        # Track issues per method
+        int_operations_count = 0
+        invalid_format_count = 0
+        
         # Plot each operation as a rectangle
         for machine_idx, schedule in enumerate(machine_schedules):
             y_position = num_machines - machine_idx - 1  # Reverse order for visual clarity
             
-            for op_start, op_end, operation in schedule:
+            for operation_data in schedule:
+                # Fix the unpacking issue - ensure we always have at least op_start, op_end, operation
+                if len(operation_data) >= 3:
+                    op_start, op_end, operation = operation_data[0], operation_data[1], operation_data[2]
+                else:
+                    # Skip if we don't have enough data
+                    invalid_format_count += 1
+                    continue
+                
+                # Check if operation is an int (operation ID) instead of an Operation object
+                if isinstance(operation, int):
+                    int_operations_count += 1
+                    # Create a simple colored bar without job-specific information
+                    color = machine_colors[machine_idx]
+                    rect = patches.Rectangle(
+                        (op_start, y_position - bar_height/2),
+                        op_end - op_start,
+                        bar_height,
+                        edgecolor='black',
+                        facecolor=color,
+                        alpha=0.8,
+                        linewidth=1
+                    )
+                    ax.add_patch(rect)
+                    
+                    # Add generic operation ID label if enough space
+                    if (op_end - op_start) > max_makespan * 0.05:
+                        ax.text(
+                            (op_start + op_end) / 2,
+                            y_position,
+                            f"Op {operation}",
+                            ha='center',
+                            va='center',
+                            fontsize=7,
+                            fontweight='bold',
+                            color='white'
+                        )
+                    continue
+                
                 # Color by job
                 color = job_colors[operation.job_idx]
                 
@@ -287,6 +466,10 @@ def visualize_comparative_schedules(solutions: Dict[str, Solution],
                         color='white'
                     )
         
+        # Update total counts
+        total_int_operations += int_operations_count
+        total_invalid_format += invalid_format_count
+        
         # Set chart properties
         ax.set_xlim(0, max_makespan)
         ax.set_ylim(-0.5, num_machines - 0.5 + bar_height/2)
@@ -303,6 +486,13 @@ def visualize_comparative_schedules(solutions: Dict[str, Solution],
         
         # Add grid lines
         ax.grid(True, axis='x', linestyle='--', alpha=0.7)
+    
+    # Print summary warnings
+    if total_int_operations > 0:
+        print(f"Note: Found {total_int_operations} integer operations instead of Operation objects in comparative visualization")
+    
+    if total_invalid_format > 0:
+        print(f"Note: Found {total_invalid_format} operations with invalid format in comparative visualization")
     
     # Hide any unused subplot
     for i in range(num_solutions, len(axes)):

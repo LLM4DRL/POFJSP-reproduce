@@ -72,6 +72,10 @@ results_*.csv
 .hydra/
 multirun/
 
+# Benchmark results - exclude from git
+figures/results/benchmark/
+figures/results/
+
 # Large data files
 *.pkl
 *.npy
@@ -81,14 +85,16 @@ multirun/
 *.h5
 *.hdf5
 *.dta
+*.png
+*.pdf
 
 # Allow all PDFs in paper documentation
-!papers/*.pdf
-!docs/papers/*.pdf
-!docs/**/*.pdf
-!paper.pdf
-!papers.pdf
-!docs/paper.pdf
+# !papers/*.pdf
+# !docs/papers/*.pdf
+# !docs/**/*.pdf
+# !paper.pdf
+# !papers.pdf
+# !docs/paper.pdf
 
 # Keep README files
 !**/README.md 
@@ -100,3 +106,9 @@ data/*
 # Sample visualization output
 # Don't ignore figures directory, we want to keep visualization code & outputs
 visualization/output/
+figures/*
+!figures/results/
+!figures/gantt/
+!figures/dataset/
+!figures/analysis/
+!figures/comparison/

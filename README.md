@@ -102,4 +102,40 @@ If you use this code, please cite the original paper:
 
 ## License
 
-[Your license information] 
+[Your license information]
+
+## Usage
+
+### Basic usage
+
+```bash
+# Run with default configuration (evaluate mode on benchmark dataset)
+python main.py
+
+# Run with a specific mode
+python main.py mode=visualize
+python main.py mode=generate
+python main.py mode=reproduce
+python main.py mode=evaluate
+
+# Override specific configuration values
+python main.py dataset=benchmark
+python main.py algorithm.pop_size=100 algorithm.max_iterations=200
+```
+
+### Parallel Processing
+
+The project supports parallel processing using Joblib, which significantly speeds up evaluation on multiple problem instances:
+
+```bash
+# Enable multiprocessing with default settings (use all available cores)
+python main.py multiprocessing.enabled=true
+
+# Specify number of processes to use (e.g., 4 cores)
+python main.py multiprocessing.enabled=true multiprocessing.n_jobs=4
+
+# Adjust verbosity level (0 to disable progress updates)
+python main.py multiprocessing.enabled=true multiprocessing.verbose=0
+```
+
+## Algorithm Overview 
