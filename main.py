@@ -157,6 +157,7 @@ def _process_single_instance(instance_id, problem, cfg):
     max_iterations = cfg.algorithm.max_iterations
     crossover_prob = cfg.algorithm.crossover_prob
     mutation_prob = cfg.algorithm.mutation_prob
+    verbose = cfg.verbose
     
     # Determine if we should track convergence
     track_convergence = cfg.visualization.enabled and cfg.visualization.convergence_plot
@@ -168,17 +169,20 @@ def _process_single_instance(instance_id, problem, cfg):
     solution = iaoa_gns_algorithm(
         problem=problem,
         pop_size=pop_size,
-        max_iterations=max_iterations
+        max_iterations=max_iterations,
+        verbose=verbose
     )
     
     # Calculate execution time
     execution_time = time.time() - start_time
     
     # Analyze job distribution across machines
-    print("\nJOB DISTRIBUTION ANALYSIS:")
     job_machine_count = {}
     for j in range(problem.num_jobs):
         job_machine_count[j] = {m: 0 for m in range(problem.num_machines)}
+        
+    if verbose:
+        print("\nJOB DISTRIBUTION ANALYSIS:")
     
     # First try to analyze using machine_schedules if available
     if hasattr(solution, 'machine_schedules') and solution.machine_schedules:
@@ -197,14 +201,15 @@ def _process_single_instance(instance_id, problem, cfg):
                 machine_idx = details['machine']
                 job_machine_count[job_idx][machine_idx] += 1
     
-    # Print distribution
-    for job_idx, machine_counts in job_machine_count.items():
-        if sum(machine_counts.values()) > 0:  # Skip jobs with no operations
-            machines_used = [m for m, count in machine_counts.items() if count > 0]
-            print(f"Job {job_idx}: {sum(machine_counts.values())} operations across {len(machines_used)} machines")
-            for m, count in machine_counts.items():
-                if count > 0:
-                    print(f"  - Machine {m}: {count} operations")
+    # Print distribution if verbose
+    if verbose:
+        for job_idx, machine_counts in job_machine_count.items():
+            if sum(machine_counts.values()) > 0:  # Skip jobs with no operations
+                machines_used = [m for m, count in machine_counts.items() if count > 0]
+                print(f"Job {job_idx}: {sum(machine_counts.values())} operations across {len(machines_used)} machines")
+                for m, count in machine_counts.items():
+                    if count > 0:
+                        print(f"  - Machine {m}: {count} operations")
     
     # Count if there are any jobs with all operations on one machine
     jobs_on_single_machine = 0
@@ -214,7 +219,7 @@ def _process_single_instance(instance_id, problem, cfg):
             if len(machines_used) == 1:
                 jobs_on_single_machine += 1
     
-    if jobs_on_single_machine > 0:
+    if jobs_on_single_machine > 0 and verbose:
         print(f"\nWARNING: {jobs_on_single_machine} jobs have all operations on a single machine!")
     
     result = {
@@ -230,7 +235,8 @@ def _process_single_instance(instance_id, problem, cfg):
     # Add solution for Gantt charts etc.
     result['solution'] = solution
     
-    print(f"  Processed {instance_id}: Makespan: {solution.makespan:.2f}, Time: {execution_time:.2f}s")
+    if verbose:
+        print(f"  Processed {instance_id}: Makespan: {solution.makespan:.2f}, Time: {execution_time:.2f}s")
     
     return result
 
@@ -283,9 +289,17 @@ def _evaluate_algorithm(cfg: DictConfig):
         
         # Process instances sequentially
         for idx, (instance_id, problem) in enumerate(instances):
-            print(f"\n[{idx+1}/{len(instances)}] Evaluating instance: {instance_id}")
+            if cfg.verbose:
+                print(f"\n[{idx+1}/{len(instances)}] Evaluating instance: {instance_id}")
+            else:
+                # Minimal progress indicator
+                print(f"Processing: {idx+1}/{len(instances)}\r", end="")
+            
             result = _process_single_instance(instance_id, problem, cfg)
             results_with_solutions.append(result)
+            
+        if not cfg.verbose:
+            print()  # Add newline after progress indicators
     
     # Gather convergence histories if needed
     convergence_histories = []
@@ -355,20 +369,25 @@ def _reproduce_results(cfg: DictConfig):
     # Run algorithm with original settings
     results = []
     
-    for instance_id, problem in instances:
-        print(f"\nReproducing results for instance: {instance_id}")
+    for idx, (instance_id, problem) in enumerate(instances):
+        if verbose:
+            print(f"\nReproducing results for instance: {instance_id}")
+        else:
+            print(f"Processing reproduction: {idx+1}/{len(instances)}\r", end="")
         
         # Use original algorithm settings
         pop_size = cfg.reproduction.algorithm.pop_size
         max_iterations = cfg.reproduction.algorithm.max_iterations
         crossover_prob = cfg.reproduction.algorithm.crossover_prob
         mutation_prob = cfg.reproduction.algorithm.mutation_prob
+        verbose = cfg.verbose
         
         # Run algorithm
         solution = iaoa_gns_algorithm(
             problem=problem,
             pop_size=pop_size,
-            max_iterations=max_iterations
+            max_iterations=max_iterations,
+            verbose=verbose
         )
         
         # Record results
@@ -386,12 +405,16 @@ def _reproduce_results(cfg: DictConfig):
         
         results.append(result)
         
-        if 'reported_makespan' in result:
-            print(f"  Our makespan: {solution.makespan:.2f}")
-            print(f"  Reported makespan: {result['reported_makespan']:.2f}")
-            print(f"  Difference: {result['difference']:.2f}%")
-        else:
-            print(f"  Makespan: {solution.makespan:.2f}")
+        if verbose:
+            if 'reported_makespan' in result:
+                print(f"  Our makespan: {solution.makespan:.2f}")
+                print(f"  Reported makespan: {result['reported_makespan']:.2f}")
+                print(f"  Difference: {result['difference']:.2f}%")
+            else:
+                print(f"  Makespan: {solution.makespan:.2f}")
+    
+    if not verbose:
+        print()  # Add newline after progress indicators
     
     # Save reproduction results
     results_df = pd.DataFrame(results)
@@ -419,8 +442,27 @@ def _run_rl_mode(cfg: DictConfig):
     print(f"\n🤖 Running RL mode with PPO agent")
     
     # Load dataset
-    dataset = POFJSPDataLoader(cfg.dataset)
-    problem_instances = dataset.load_instances()
+    orig_dir = hydra.utils.get_original_cwd()
+    dataset_loader = POFJSPDataLoader(str(Path(orig_dir) / cfg.dataset.path))
+    
+    # Get the dataset name
+    dataset_name = cfg.dataset.name
+    
+    # Load instances based on filters
+    size_filter = cfg.dataset.size_filter
+    pattern_filter = cfg.dataset.pattern_filter
+    max_instances = cfg.dataset.max_instances
+    
+    # Load the instances
+    problem_instances_list = dataset_loader.load_instances_by_criteria(
+        dataset_name=dataset_name,
+        size_config=size_filter,
+        precedence_pattern=pattern_filter,
+        max_instances=max_instances
+    )
+    
+    # Convert to dictionary format for consistency
+    problem_instances = {instance_id: problem for instance_id, problem in problem_instances_list}
     
     if not problem_instances:
         print("No problem instances found! Check dataset configuration.")
@@ -434,10 +476,14 @@ def _run_rl_mode(cfg: DictConfig):
     # Get agent configuration
     agent_cfg = cfg.rl.agent
     training_cfg = cfg.rl.training
+    verbose = cfg.verbose
     
     # Process each problem instance
     for idx, (instance_id, problem) in enumerate(problem_instances.items()):
-        print(f"\nProcessing instance {idx+1}/{len(problem_instances)}: {instance_id}")
+        if verbose:
+            print(f"\nProcessing instance {idx+1}/{len(problem_instances)}: {instance_id}")
+        else:
+            print(f"Processing RL instance: {idx+1}/{len(problem_instances)}\r", end="")
         
         # Train PPO agent for this instance
         agent_save_path = None
@@ -455,7 +501,8 @@ def _run_rl_mode(cfg: DictConfig):
             problem_instance=problem,
             total_timesteps=training_cfg.total_timesteps,
             n_envs=training_cfg.n_envs,
-            save_path=agent_save_path
+            save_path=agent_save_path,
+            verbose=verbose
         )
         
         # Calculate execution time
@@ -485,15 +532,16 @@ def _run_rl_mode(cfg: DictConfig):
         # Add to result
         result['job_distribution'] = job_machine_count
         
-        # Print job distribution
-        print("\nJOB DISTRIBUTION ANALYSIS:")
-        for job_idx, machine_counts in job_machine_count.items():
-            if sum(machine_counts.values()) > 0:  # Skip jobs with no operations
-                machines_used = [m for m, count in machine_counts.items() if count > 0]
-                print(f"Job {job_idx}: {sum(machine_counts.values())} operations across {len(machines_used)} machines")
-                for m, count in machine_counts.items():
-                    if count > 0:
-                        print(f"  - Machine {m}: {count} operations")
+        # Print job distribution if verbose
+        if verbose:
+            print("\nJOB DISTRIBUTION ANALYSIS:")
+            for job_idx, machine_counts in job_machine_count.items():
+                if sum(machine_counts.values()) > 0:  # Skip jobs with no operations
+                    machines_used = [m for m, count in machine_counts.items() if count > 0]
+                    print(f"Job {job_idx}: {sum(machine_counts.values())} operations across {len(machines_used)} machines")
+                    for m, count in machine_counts.items():
+                        if count > 0:
+                            print(f"  - Machine {m}: {count} operations")
         
         # Add result to results list
         results.append(result)
@@ -512,6 +560,9 @@ def _run_rl_mode(cfg: DictConfig):
                 title=f"PPO Agent Solution for {instance_id}",
                 save_convergence=False
             )
+    
+    if not verbose:
+        print()  # Add newline after progress indicators
     
     return {
         'results': results,

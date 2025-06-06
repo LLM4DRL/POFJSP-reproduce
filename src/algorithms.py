@@ -59,13 +59,14 @@ class Solution:
         return self.makespan < other.makespan
 
 # --- 1. Decoding and Fitness Evaluation ---
-def decode_solution(solution, problem):
+def decode_solution(solution, problem, verbose=False):
     """
     Decodes a solution to calculate makespan and schedule details.
     This uses an insertion-based strategy respecting precedence constraints.
     """
     # Debug: Print operation sequence and machine assignment
-    print(f"Decoding solution with {len(solution.operation_sequence)} operations")
+    if verbose:
+        print(f"Decoding solution with {len(solution.operation_sequence)} operations")
     
     # schedule_details: {Operation(j,o): {'start_time', 'end_time', 'machine'}}
     schedule_details = {}
@@ -97,7 +98,8 @@ def decode_solution(solution, problem):
         
         # NEW: Skip if this operation has already been scheduled
         if current_op in scheduled_operations:
-            print(f"WARNING: Operation {current_op} was already scheduled. Skipping duplicate.")
+            if verbose:
+                print(f"WARNING: Operation {current_op} was already scheduled. Skipping duplicate.")
             continue
         
         # Find its index in the operation sequence
@@ -106,7 +108,8 @@ def decode_solution(solution, problem):
         proc_time = problem.processing_times[current_op.job_idx][current_op.op_idx_in_job, assigned_machine]
 
         if proc_time == np.inf: # Should not happen with valid machine assignment
-            print(f"ERROR: Invalid processing time for op={current_op}, machine={assigned_machine}")
+            if verbose:
+                print(f"ERROR: Invalid processing time for op={current_op}, machine={assigned_machine}")
             solution.makespan = float('inf')
             solution.schedule_details = {}
             solution.machine_schedules = [[] for _ in range(problem.num_machines)]
@@ -117,7 +120,8 @@ def decode_solution(solution, problem):
         if current_op in problem.predecessors_map:
             for pred_op in problem.predecessors_map[current_op]:
                 if pred_op not in operation_completion_times:
-                    print(f"WARNING: Predecessor {pred_op} for {current_op} not scheduled yet. This might indicate a topological sort issue.")
+                    if verbose:
+                        print(f"WARNING: Predecessor {pred_op} for {current_op} not scheduled yet. This might indicate a topological sort issue.")
                     # If predecessor not scheduled, we'll need to handle this case
                     # For now, let's be robust and continue, but this is not ideal
                 else:
@@ -150,7 +154,7 @@ def decode_solution(solution, problem):
         op_end_time = op_start_time + proc_time
         
         # Debug: Check for negative or strange start times
-        if op_start_time < 0:
+        if op_start_time < 0 and verbose:
             print(f"ERROR: Negative start time at index {op_idx}, op={current_op}, machine={assigned_machine}, start_time={op_start_time}")
 
         # Update schedules
@@ -177,7 +181,7 @@ def decode_solution(solution, problem):
         processed_ops += 1
     
     # Check if all operations were processed
-    if processed_ops < len(solution.operation_sequence):
+    if processed_ops < len(solution.operation_sequence) and verbose:
         print(f"WARNING: Not all operations were processed. This indicates a cycle in the precedence graph.")
         # Add remaining operations in the sequence even though it violates precedence
         for op in solution.operation_sequence:
@@ -215,7 +219,8 @@ def decode_solution(solution, problem):
         makespan = max(operation_completion_times.values())
     
     # Debug: Check makespan
-    print(f"Calculated makespan: {makespan}")
+    if verbose:
+        print(f"Calculated makespan: {makespan}")
     
     # For GNS, it's useful to have machine schedules also store op info
     final_machine_schedules_detailed = [[] for _ in range(problem.num_machines)]
@@ -451,317 +456,193 @@ def calculate_woc(job_idx, schedule_details_for_job, problem):
     return total_processing_time_for_job / job_completion_time
 
 
-def two_d_clustering_crossover(parent1_sol, parent2_sol, population, best_solution_overall, problem):
+def two_d_clustering_crossover(parent1_sol, parent2_sol, population, best_solution_overall, problem, verbose=False):
     # Debug: Starting crossover
-    print(f"  Starting 2D clustering crossover. Parent1 makespan: {parent1_sol.makespan}, Parent2 makespan: {parent2_sol.makespan}")
+    if verbose:
+        print("    Starting 2D clustering crossover")
     
-    # This is a simplified version. The paper's 2D clustering is more involved.
-    # It clusters the entire population based on (fitness, DVPC) into k=4 clusters,
-    # then selects parents from different clusters.
-    # Here, we'll implement a POX-like crossover that preserves precedence constraints.
+    # Create a copy of parent1 as the base for the offspring
+    offspring_op_seq = parent1_sol.operation_sequence.copy()
+    offspring_ma_seq = parent1_sol.machine_assignment.copy()
     
-    # IMPROVED METHOD: Use a topological sort as the basis for crossover
-    # Step 1: Get a valid topological sort of operations to use as a template
-    topo_sort = get_topological_sort_operations(problem)
-    print(f"    Using topological sort as template to ensure precedence validity")
+    # Calculate DVPC for both parents
+    parent1_dvpc = calculate_dvpc(parent1_sol, best_solution_overall.schedule_details, problem)
+    parent2_dvpc = calculate_dvpc(parent2_sol, best_solution_overall.schedule_details, problem)
     
-    # Step 2: Instead of inheriting a single job from parent1, inherit a random selection of jobs
-    # This provides more diversity in the offspring
-    num_jobs_to_inherit = max(1, int(problem.num_jobs * 0.3))  # Inherit about 30% of jobs
-    jobs_to_inherit = random.sample(range(problem.num_jobs), num_jobs_to_inherit)
-    print(f"    Inheriting jobs {jobs_to_inherit} from parent1")
+    # Create operation-to-machine mapping for both parents
+    p1_op_to_machine = {op: parent1_sol.machine_assignment[i] for i, op in enumerate(parent1_sol.operation_sequence)}
+    p2_op_to_machine = {op: parent2_sol.machine_assignment[i] for i, op in enumerate(parent2_sol.operation_sequence)}
     
-    # Step 3: Create mapping from operations to their machines in each parent
-    parent1_op_to_machine = {}
-    for i, op in enumerate(parent1_sol.operation_sequence):
-        parent1_op_to_machine[op] = parent1_sol.machine_assignment[i]
+    # For each job, decide whether to use parent1 or parent2's machine assignment
+    for job_idx in range(problem.num_jobs):
+        # Get operations for this job
+        job_ops = [op for op in problem.all_operations if op.job_idx == job_idx]
         
-    parent2_op_to_machine = {}
-    for i, op in enumerate(parent2_sol.operation_sequence):
-        parent2_op_to_machine[op] = parent2_sol.machine_assignment[i]
-    
-    # Step 4: Create child's operation sequence following the topological order
-    child_op_seq = topo_sort.copy()
-    
-    # Step 5: Create machine assignments with improved distribution
-    job_machine_count = {}  # Track distribution of operations per job across machines
-    for j in range(problem.num_jobs):
-        job_machine_count[j] = {m: 0 for m in range(problem.num_machines)}
+        # Skip if no operations for this job
+        if not job_ops:
+            continue
         
-    job_last_machine = {}  # Track the last machine used for each job
-    child_ma_seq = []
-    
-    for op in child_op_seq:
-        job_idx, op_idx_in_job = op.job_idx, op.op_idx_in_job
+        # Calculate WOC for this job from both parents
+        p1_job_schedule = {op: parent1_sol.schedule_details.get(op, None) for op in job_ops if op in parent1_sol.schedule_details}
+        p2_job_schedule = {op: parent2_sol.schedule_details.get(op, None) for op in job_ops if op in parent2_sol.schedule_details}
         
-        # Determine parent machine (if available)
-        if op.job_idx in jobs_to_inherit and op in parent1_op_to_machine:
-            parent_machine = parent1_op_to_machine[op]
-        elif op in parent2_op_to_machine:
-            parent_machine = parent2_op_to_machine[op]
+        # If either parent doesn't have schedule details for this job, use the other parent
+        if not p1_job_schedule:
+            if p2_job_schedule:
+                # Use parent2's machine assignment for this job
+                for op in job_ops:
+                    if op in p2_op_to_machine:
+                        idx = offspring_op_seq.index(op)
+                        offspring_ma_seq[idx] = p2_op_to_machine[op]
+            continue
+        
+        if not p2_job_schedule:
+            # Already using parent1's machine assignment
+            continue
+        
+        # Calculate WOC for both parents
+        p1_woc = calculate_woc(job_idx, p1_job_schedule, problem)
+        p2_woc = calculate_woc(job_idx, p2_job_schedule, problem)
+        
+        # Compare WOC and DVPC to decide which parent to use for this job
+        if p1_woc <= p2_woc and parent1_dvpc <= parent2_dvpc:
+            # Use parent1 (already the default)
+            pass
+        elif p1_woc > p2_woc and parent1_dvpc > parent2_dvpc:
+            # Use parent2
+            for op in job_ops:
+                if op in p2_op_to_machine:
+                    idx = offspring_op_seq.index(op)
+                    offspring_ma_seq[idx] = p2_op_to_machine[op]
         else:
-            parent_machine = None
-            
-        # Get valid machines for this operation
-        valid_machines = [m for m in range(problem.num_machines) 
-                          if problem.processing_times[job_idx][op_idx_in_job, m] != np.inf]
-        
-        if not valid_machines:
-            # No valid machines - use parent's machine or random
-            if parent_machine is not None:
-                chosen_machine = parent_machine
-            else:
-                chosen_machine = random.randint(0, problem.num_machines - 1)
-                print(f"    WARNING: No valid machines for op ({job_idx},{op_idx_in_job})")
-        else:
-            # Determine which machines are already heavily used for this job
-            current_machines = [m for m, count in job_machine_count[job_idx].items() if count > 0]
-            
-            # If all operations of this job so far are on a single machine, try to diversify
-            if len(current_machines) == 1 and len(valid_machines) > 1 and job_machine_count[job_idx][current_machines[0]] > 0:
-                # Force diversification - try to use a different machine than current_machines[0]
-                other_machines = [m for m in valid_machines if m != current_machines[0]]
-                
-                if other_machines:
-                    # Calculate machine scores based on processing time
-                    machine_scores = []
-                    for m in other_machines:
-                        proc_time = problem.processing_times[job_idx][op_idx_in_job, m]
-                        score = proc_time
-                        
-                        # Small bias for parent's machine if it's in other_machines
-                        if parent_machine is not None and m == parent_machine:
-                            score *= 0.9  # Reduce score by 10% to favor parent's choice
-                            
-                        machine_scores.append((score, m))
-                        
-                    # Sort by score (lower is better)
-                    machine_scores.sort()
-                    
-                    if machine_scores:
-                        chosen_machine = machine_scores[0][1]  # Best alternative
-                    else:
-                        chosen_machine = random.choice(other_machines)
-                else:
-                    # If no other options, use parent's machine or current machine
-                    if parent_machine is not None and parent_machine in valid_machines:
-                        chosen_machine = parent_machine
-                    else:
-                        chosen_machine = current_machines[0]
-            else:
-                # Normal case - score machines
-                machine_scores = []
-                for m in valid_machines:
-                    # Base score is processing time
-                    proc_time = problem.processing_times[job_idx][op_idx_in_job, m]
-                    score = proc_time
-                    
-                    # Heavy penalty for machines that already have many ops from this job
-                    score += job_machine_count[job_idx][m] * 20
-                    
-                    # Penalty for consecutive use of the same machine
-                    if job_idx in job_last_machine and job_last_machine[job_idx] == m:
-                        score += 30
-                    
-                    # Favor parent's machine with a bonus
-                    if parent_machine is not None and m == parent_machine:
-                        score *= 0.85  # 15% discount
-                        
-                    machine_scores.append((score, m))
-                
-                # Sort by score
-                machine_scores.sort()
-                
-                # Choose with bias toward best machine
-                if random.random() < 0.7 or len(machine_scores) == 1:
-                    chosen_machine = machine_scores[0][1]  # Best scoring machine
-                else:
-                    # Otherwise select from top 40% of candidates
-                    top_count = max(1, int(len(machine_scores) * 0.4))
-                    chosen_machine = random.choice([m for _, m in machine_scores[:top_count]])
-        
-        # Add chosen machine to assignments
-        child_ma_seq.append(chosen_machine)
-        job_last_machine[job_idx] = chosen_machine
-        job_machine_count[job_idx][chosen_machine] += 1
+            # Conflicting indicators, use the better WOC
+            if p2_woc < p1_woc:
+                for op in job_ops:
+                    if op in p2_op_to_machine:
+                        idx = offspring_op_seq.index(op)
+                        offspring_ma_seq[idx] = p2_op_to_machine[op]
     
-    # Check validity of child
-    if len(child_op_seq) != problem.total_operations or len(child_ma_seq) != problem.total_operations:
-        print(f"    WARNING: Invalid child solution (length mismatch). Using parent1 as fallback.")
-        return copy.deepcopy(parent1_sol)
-        
-    # Make sure all operations are included (should be guaranteed by topo_sort)
-    op_counts = defaultdict(int)
-    for op in child_op_seq:
-        op_counts[op] += 1
+    # Create and decode the offspring solution
+    offspring_sol = Solution(offspring_op_seq, offspring_ma_seq)
+    decode_solution(offspring_sol, problem, verbose)
     
-    if not all(count == 1 for count in op_counts.values()) or len(op_counts) != problem.total_operations:
-        print(f"    WARNING: Invalid operation sequence (duplicates/missing). Using parent1 as fallback.")
-        return copy.deepcopy(parent1_sol)
-        
-    print(f"    Successfully created child with {len(child_op_seq)} operations")
-    child_sol = Solution(child_op_seq, child_ma_seq)
-    decode_solution(child_sol, problem)
-    print(f"    Child makespan: {child_sol.makespan}")
-    return child_sol
+    if verbose:
+        print(f"    Crossover complete, offspring makespan: {offspring_sol.makespan}")
+    
+    return offspring_sol
 
 
-def effective_parallel_mutation(solution, problem, mutation_rate=0.2):
-    print(f"    Starting effective parallel mutation")
+def effective_parallel_mutation(solution, problem, mutation_rate=0.2, verbose=False):
+    """
+    Effective parallel mutation operator.
     
-    # IMPROVED APPROACH: Ensure topological ordering is maintained
-    # First, create a new solution that respects topological ordering
+    This mutation has two components:
+    1. OS mutation: Swap operations while preserving precedence constraints
+    2. MA mutation: Change machine assignments for selected operations
+    """
+    # Debug: Starting mutation
+    if verbose:
+        print("    Starting effective parallel mutation")
+    
+    # Create a copy of the solution
+    offspring_op_seq = solution.operation_sequence.copy()
+    offspring_ma_seq = solution.machine_assignment.copy()
+    
+    # 1. OS Mutation (Operation Sequence)
+    # We'll use a precedence-preserving swap mutation
+    
+    # First, get a valid topological ordering to ensure we maintain precedence
     topo_sort = get_topological_sort_operations(problem)
     
-    # Create mappings from operations to machine assignments
-    op_to_machine = {}
-    for i, op in enumerate(solution.operation_sequence):
-        op_to_machine[op] = solution.machine_assignment[i]
+    # Create a mapping from operations to their positions in the topological sort
+    topo_positions = {op: i for i, op in enumerate(topo_sort)}
     
-    # Create a new solution that follows topological ordering
-    mutated_op_seq = topo_sort.copy()
+    # Determine number of swaps based on mutation rate
+    num_swaps = max(1, int(len(offspring_op_seq) * mutation_rate * 0.5))
     
-    # Track job distribution across machines
-    job_machine_count = {}  # {job_idx: {machine: count}}
-    for j in range(problem.num_jobs):
-        job_machine_count[j] = {m: 0 for m in range(problem.num_machines)}
+    if verbose:
+        print(f"    Performing {num_swaps} operation sequence swaps")
     
-    # First pass: count current distribution
-    for op, machine in op_to_machine.items():
-        job_machine_count[op.job_idx][machine] += 1
-    
-    # Now determine machine assignments with improved distribution
-    job_last_machine = {}  # Keep track of last machine used for each job
-    mutated_ma_seq = []
-    
-    # Calculate how many operations to mutate
-    num_ops_to_mutate = max(1, int(len(mutated_op_seq) * mutation_rate))
-    ops_to_mutate = set(random.sample(range(len(mutated_op_seq)), num_ops_to_mutate))
-    
-    # Find jobs that need diversification (all ops on same machine)
-    jobs_needing_diversity = []
-    for j in range(problem.num_jobs):
-        machines_used = [m for m, count in job_machine_count[j].items() if count > 0]
-        if len(machines_used) == 1 and sum(job_machine_count[j].values()) > 1:
-            jobs_needing_diversity.append((j, machines_used[0]))  # (job_idx, current_machine)
-    
-    # Prioritize diversifying these jobs in mutation
-    priority_ops = []
-    if jobs_needing_diversity:
-        for job_idx, current_machine in jobs_needing_diversity:
-            # Find operations from this job in our sequence
-            for i, op in enumerate(mutated_op_seq):
-                if op.job_idx == job_idx:
-                    priority_ops.append((i, op, current_machine))
-                    if len(priority_ops) >= num_ops_to_mutate:
-                        break
-    
-    # Add these priority ops to the mutation set
-    for i, _, _ in priority_ops[:num_ops_to_mutate]:
-        ops_to_mutate.add(i)
-    
-    for i, op in enumerate(mutated_op_seq):
-        job_idx, op_idx_in_job = op.job_idx, op.op_idx_in_job
+    for _ in range(num_swaps):
+        # Select a random position
+        pos1 = random.randint(0, len(offspring_op_seq) - 1)
+        op1 = offspring_op_seq[pos1]
         
-        # Get the current machine assignment
-        current_machine = op_to_machine.get(op, None)
-        
-        # Determine if this operation should be mutated
-        should_mutate = (i in ops_to_mutate) or (current_machine is None)
-        
-        if should_mutate:
-            # Get valid machines for this operation
-            valid_machines = [m for m in range(problem.num_machines) 
-                              if problem.processing_times[job_idx][op_idx_in_job, m] != np.inf]
+        # Find a valid swap partner that preserves precedence
+        # We'll try up to 10 times to find a valid swap
+        valid_swap_found = False
+        for _ in range(10):  # Try 10 times
+            pos2 = random.randint(0, len(offspring_op_seq) - 1)
+            if pos1 == pos2:
+                continue
+                
+            op2 = offspring_op_seq[pos2]
             
-            if not valid_machines:
-                # If no valid machines (shouldn't happen with proper problem definition)
-                if current_machine is not None:
-                    # Keep current assignment if it exists
-                    mutated_ma_seq.append(current_machine)
-                    job_machine_count[job_idx][current_machine] += 1
-                else:
-                    # Random fallback
-                    random_machine = random.randint(0, problem.num_machines - 1)
-                    mutated_ma_seq.append(random_machine)
-                    job_machine_count[job_idx][random_machine] += 1
-            else:
-                # Find which machines are already heavily used for this job
-                max_ops_on_machine = max(job_machine_count[job_idx][m] for m in valid_machines)
-                most_used_machines = [m for m in valid_machines 
-                                     if job_machine_count[job_idx][m] == max_ops_on_machine 
-                                     and max_ops_on_machine > 0]
+            # Check if swapping these operations would violate precedence
+            # If op1 must come before op2 in topo_sort, we can't swap
+            # If op2 must come before op1 in topo_sort, we can't swap
+            if topo_positions[op1] < topo_positions[op2] and pos1 > pos2:
+                # Can't swap: op1 should be before op2 but is after
+                continue
+            if topo_positions[op2] < topo_positions[op1] and pos2 > pos1:
+                # Can't swap: op2 should be before op1 but is after
+                continue
                 
-                # Score valid machines
-                machine_scores = []
-                for m in valid_machines:
-                    # Base score is processing time
-                    proc_time = problem.processing_times[job_idx][op_idx_in_job, m]
-                    score = proc_time
-                    
-                    # Heavy penalty for machines that already have many ops from this job
-                    if m in most_used_machines:
-                        score += 100
-                    
-                    # Penalty based on how many ops from this job are already on this machine
-                    score += job_machine_count[job_idx][m] * 30
-                    
-                    # Penalty if this is the last used machine for this job
-                    if job_idx in job_last_machine and job_last_machine[job_idx] == m:
-                        score += 50
-                    
-                    machine_scores.append((score, m))
-                
-                # Sort by score
-                machine_scores.sort()
-                
-                # FORCED DIVERSIFICATION:
-                # If this job already has all operations on one machine, force diversity
-                current_machines = [m for m, count in job_machine_count[job_idx].items() if count > 0]
-                
-                if len(current_machines) == 1 and len(valid_machines) > 1:
-                    # Force choice of a different machine if possible
-                    other_machines = [m for m in valid_machines if m not in current_machines]
-                    if other_machines:
-                        # Find best alternative machine
-                        alt_scores = [(s, m) for s, m in machine_scores if m in other_machines]
-                        if alt_scores:
-                            chosen_machine = alt_scores[0][1]
-                        else:
-                            chosen_machine = random.choice(other_machines)
-                    else:
-                        # If no alternative, use best scoring machine
-                        chosen_machine = machine_scores[0][1]
-                else:
-                    # Choose from top candidates with bias toward best
-                    top_count = max(1, min(3, len(machine_scores)))
-                    
-                    if random.random() < 0.7:  # 70% chance to pick best
-                        chosen_machine = machine_scores[0][1]
-                    else:
-                        # Otherwise random from top options
-                        chosen_machine = machine_scores[random.randint(0, top_count-1)][1]
-                
-                # Update assignments
-                mutated_ma_seq.append(chosen_machine)
-                job_last_machine[job_idx] = chosen_machine
-                job_machine_count[job_idx][chosen_machine] += 1
-        else:
-            # Keep the current machine assignment
-            mutated_ma_seq.append(current_machine)
-            job_machine_count[job_idx][current_machine] += 1
-            job_last_machine[job_idx] = current_machine
+            # Swap is valid
+            offspring_op_seq[pos1], offspring_op_seq[pos2] = offspring_op_seq[pos2], offspring_op_seq[pos1]
+            offspring_ma_seq[pos1], offspring_ma_seq[pos2] = offspring_ma_seq[pos2], offspring_ma_seq[pos1]
+            valid_swap_found = True
+            break
+            
+        if not valid_swap_found and verbose:
+            print(f"    Could not find valid swap for position {pos1}")
     
-    # Create the mutated solution
-    mutated_sol = Solution(mutated_op_seq, mutated_ma_seq)
-    decode_solution(mutated_sol, problem)
+    # 2. MA Mutation (Machine Assignment)
+    # Change machine assignments for some operations
     
-    # Ensure we didn't break anything
-    if mutated_sol.makespan == float('inf'):
-        print("    WARNING: Mutation resulted in invalid solution with inf makespan. Using original.")
-        return copy.deepcopy(solution)
+    # Determine number of machine changes
+    num_changes = max(1, int(len(offspring_ma_seq) * mutation_rate))
+    
+    if verbose:
+        print(f"    Performing {num_changes} machine assignment changes")
+    
+    for _ in range(num_changes):
+        # Select a random operation
+        pos = random.randint(0, len(offspring_op_seq) - 1)
+        op = offspring_op_seq[pos]
+        current_machine = offspring_ma_seq[pos]
         
-    return mutated_sol
+        # Get valid alternative machines
+        valid_machines = []
+        for m in range(problem.num_machines):
+            if m != current_machine and problem.processing_times[op.job_idx][op.op_idx_in_job, m] != np.inf:
+                valid_machines.append(m)
+        
+        if valid_machines:
+            # Choose a new machine with preference for faster ones
+            machine_times = [(problem.processing_times[op.job_idx][op.op_idx_in_job, m], m) for m in valid_machines]
+            machine_times.sort()  # Sort by processing time
+            
+            # Select with bias toward faster machines
+            if random.random() < 0.7:  # 70% chance to pick the fastest
+                new_machine = machine_times[0][1]
+            else:
+                new_machine = random.choice(valid_machines)
+                
+            offspring_ma_seq[pos] = new_machine
+            if verbose:
+                print(f"    Changed machine for op {op} from {current_machine} to {new_machine}")
+        elif verbose:
+            print(f"    No valid alternative machines for op {op}")
+    
+    # Create and evaluate the offspring
+    offspring_sol = Solution(offspring_op_seq, offspring_ma_seq)
+    decode_solution(offspring_sol, problem, verbose)
+    
+    if verbose:
+        print(f"    Mutation complete, offspring makespan: {offspring_sol.makespan}")
+    
+    return offspring_sol
 
 # --- 4. Development Phase Operators (GNS) ---
 def get_bottlenecks(population, problem): # Pass population of Solution objects
@@ -813,11 +694,12 @@ def get_operation_priority(op, problem): # op is Operation(job_idx, op_idx_in_jo
     if num_successors == 1: return "G2"
     return "G3" # num_successors == 0
 
-def grade_neighborhood_search(solution, bottleneck_type, bottleneck_id, problem):
+def grade_neighborhood_search(solution, bottleneck_type, bottleneck_id, problem, verbose=False):
     # bottleneck_type: "job" or "machine"
     # bottleneck_id: job_idx or machine_idx
     
-    print(f"    Starting GNS for {bottleneck_type} {bottleneck_id}")
+    if verbose:
+        print(f"    Starting GNS for {bottleneck_type} {bottleneck_id}")
     
     # IMPROVED APPROACH: Ensure topological ordering is maintained
     # First, create a new solution that respects topological ordering
@@ -835,7 +717,7 @@ def grade_neighborhood_search(solution, bottleneck_type, bottleneck_id, problem)
     gns_sol = Solution(gns_op_seq, gns_ma_seq)
     
     # First, decode the solution to get the schedule
-    decode_solution(gns_sol, problem)
+    decode_solution(gns_sol, problem, verbose)
     
     # Find operations to consider for GNS
     operations_to_consider = []
@@ -853,7 +735,8 @@ def grade_neighborhood_search(solution, bottleneck_type, bottleneck_id, problem)
                                                'details': gns_sol.schedule_details.get(op_obj, None)})
     
     if not operations_to_consider:
-        print(f"    No operations found for {bottleneck_type} {bottleneck_id}")
+        if verbose:
+            print(f"    No operations found for {bottleneck_type} {bottleneck_id}")
         return solution  # Return original solution if no operations found
 
     # Prioritize operations
@@ -870,7 +753,8 @@ def grade_neighborhood_search(solution, bottleneck_type, bottleneck_id, problem)
     num_to_select = max(1, int(len(operations_to_consider) * 0.1))
     selected_ops_for_gns = operations_to_consider[:num_to_select]
     
-    print(f"    Selected {len(selected_ops_for_gns)} operations for GNS")
+    if verbose:
+        print(f"    Selected {len(selected_ops_for_gns)} operations for GNS")
 
     for op_info in selected_ops_for_gns:
         op_obj = op_info['op_obj']
@@ -878,7 +762,8 @@ def grade_neighborhood_search(solution, bottleneck_type, bottleneck_id, problem)
         op_details = op_info['details']
 
         if not op_details: 
-            print(f"    Skipping op {op_obj} - no details")
+            if verbose:
+                print(f"    Skipping op {op_obj} - no details")
             continue # Skip if op somehow has no details
 
         current_machine = op_details['machine']
@@ -900,7 +785,8 @@ def grade_neighborhood_search(solution, bottleneck_type, bottleneck_id, problem)
             if new_proc_time < current_proc_time and new_proc_time != np.inf:
                 gns_sol.machine_assignment[seq_idx] = m_idx
                 found_faster_machine = True
-                print(f"    Moving op {op_obj} to faster machine {m_idx}")
+                if verbose:
+                    print(f"    Moving op {op_obj} to faster machine {m_idx}")
                 break # Take the first faster one found
         
         if not found_faster_machine:
@@ -915,26 +801,31 @@ def grade_neighborhood_search(solution, bottleneck_type, bottleneck_id, problem)
                 if less_loaded_m_idx == current_machine: continue
                 if problem.processing_times[op_obj.job_idx][op_obj.op_idx_in_job, less_loaded_m_idx] != np.inf:
                     gns_sol.machine_assignment[seq_idx] = less_loaded_m_idx
-                    print(f"    Moving op {op_obj} to less loaded machine {less_loaded_m_idx}")
+                    if verbose:
+                        print(f"    Moving op {op_obj} to less loaded machine {less_loaded_m_idx}")
                     break # Take the first valid less loaded one
 
-    decode_solution(gns_sol, problem)
-    print(f"    GNS complete, new makespan: {gns_sol.makespan}")
+    decode_solution(gns_sol, problem, verbose)
+    if verbose:
+        print(f"    GNS complete, new makespan: {gns_sol.makespan}")
     return gns_sol
 
 # --- 5. Main IAOA+GNS Algorithm ---
-def iaoa_gns_algorithm(problem, pop_size, max_iterations):
+def iaoa_gns_algorithm(problem, pop_size, max_iterations, verbose=False):
     # Debug: Print algorithm parameters
-    print(f"Starting IAOA+GNS algorithm with pop_size={pop_size}, max_iterations={max_iterations}")
-    print(f"Problem: {problem.num_jobs} jobs, {problem.num_machines} machines, {problem.total_operations} operations")
+    if verbose:
+        print(f"Starting IAOA+GNS algorithm with pop_size={pop_size}, max_iterations={max_iterations}")
+        print(f"Problem: {problem.num_jobs} jobs, {problem.num_machines} machines, {problem.total_operations} operations")
     
     # Initialize population
-    print("Initializing population...")
+    if verbose:
+        print("Initializing population...")
     population = initialize_population(pop_size, problem)
     
     # Find initial best solution
     best_solution_overall = min(population, key=lambda s: s.makespan)
-    print(f"Initial best solution makespan: {best_solution_overall.makespan}")
+    if verbose:
+        print(f"Initial best solution makespan: {best_solution_overall.makespan}")
     
     for t in range(max_iterations):
         # Update MOA
@@ -944,11 +835,13 @@ def iaoa_gns_algorithm(problem, pop_size, max_iterations):
         
         # For 2D clustering crossover, we need DVPC which depends on best solution's schedule
         if not best_solution_overall.schedule_details: # Ensure it's decoded
-            print("Decoding best solution (needed for DVPC calculation)")
+            if verbose:
+                print("Decoding best solution (needed for DVPC calculation)")
             decode_solution(best_solution_overall, problem)
 
         # Debug: Print iteration status
-        print(f"Iteration {t+1}/{max_iterations}, MOA={moa:.4f}, Current best makespan: {best_solution_overall.makespan}")
+        if verbose:
+            print(f"Iteration {t+1}/{max_iterations}, MOA={moa:.4f}, Current best makespan: {best_solution_overall.makespan}")
 
         for i in range(pop_size):
             current_sol = population[i]
@@ -967,12 +860,14 @@ def iaoa_gns_algorithm(problem, pop_size, max_iterations):
                     parent2 = population[parent2_idx]
                     
                     # Debug: Print crossover info
-                    print(f"  Solution {i}: Using 2D clustering crossover")
-                    offspring_sol = two_d_clustering_crossover(current_sol, parent2, population, best_solution_overall, problem)
+                    if verbose:
+                        print(f"  Solution {i}: Using 2D clustering crossover")
+                    offspring_sol = two_d_clustering_crossover(current_sol, parent2, population, best_solution_overall, problem, verbose)
                 else: # Effective parallel mutation
                     # Debug: Print mutation info
-                    print(f"  Solution {i}: Using effective parallel mutation")
-                    offspring_sol = effective_parallel_mutation(current_sol, problem)
+                    if verbose:
+                        print(f"  Solution {i}: Using effective parallel mutation")
+                    offspring_sol = effective_parallel_mutation(current_sol, problem, verbose=verbose)
             else: # Development Phase (GNS)
                 # Identify bottlenecks based on current best_solution_overall or current_sol
                 # Paper implies GNS is on the current solution being processed.
@@ -980,7 +875,8 @@ def iaoa_gns_algorithm(problem, pop_size, max_iterations):
                 # For GNS, we need the schedule of the solution being improved.
                 if not current_sol.schedule_details: 
                     # Debug: Print decoding for GNS
-                    print(f"  Solution {i}: Decoding solution for GNS")
+                    if verbose:
+                        print(f"  Solution {i}: Decoding solution for GNS")
                     decode_solution(current_sol, problem)
 
                 # Determine bottleneck for current_sol
@@ -1002,40 +898,49 @@ def iaoa_gns_algorithm(problem, pop_size, max_iterations):
                     if any(machine_finish_times): current_sol_bottleneck_machine_idx = np.argmax(machine_finish_times)
 
                     # Debug: Print bottleneck info
-                    print(f"  Solution {i}: Bottleneck job={current_sol_bottleneck_job_idx}, machine={current_sol_bottleneck_machine_idx}")
+                    if verbose:
+                        print(f"  Solution {i}: Bottleneck job={current_sol_bottleneck_job_idx}, machine={current_sol_bottleneck_machine_idx}")
 
                 if r3 > 0.5: # Bottleneck job GNS
                     if current_sol_bottleneck_job_idx != -1:
                         # Debug: Print GNS job info
-                        print(f"  Solution {i}: Using job GNS on job {current_sol_bottleneck_job_idx}")
-                        offspring_sol = grade_neighborhood_search(current_sol, "job", current_sol_bottleneck_job_idx, problem)
+                        if verbose:
+                            print(f"  Solution {i}: Using job GNS on job {current_sol_bottleneck_job_idx}")
+                        offspring_sol = grade_neighborhood_search(current_sol, "job", current_sol_bottleneck_job_idx, problem, verbose)
                     else: # Fallback if no bottleneck job found
-                        print(f"  Solution {i}: No bottleneck job found, using copy")
+                        if verbose:
+                            print(f"  Solution {i}: No bottleneck job found, using copy")
                         offspring_sol = copy.deepcopy(current_sol)
                 else: # Bottleneck machine GNS
                     if current_sol_bottleneck_machine_idx != -1:
                         # Debug: Print GNS machine info
-                        print(f"  Solution {i}: Using machine GNS on machine {current_sol_bottleneck_machine_idx}")
-                        offspring_sol = grade_neighborhood_search(current_sol, "machine", current_sol_bottleneck_machine_idx, problem)
+                        if verbose:
+                            print(f"  Solution {i}: Using machine GNS on machine {current_sol_bottleneck_machine_idx}")
+                        offspring_sol = grade_neighborhood_search(current_sol, "machine", current_sol_bottleneck_machine_idx, problem, verbose)
                     else: # Fallback
-                        print(f"  Solution {i}: No bottleneck machine found, using copy")
+                        if verbose:
+                            print(f"  Solution {i}: No bottleneck machine found, using copy")
                         offspring_sol = copy.deepcopy(current_sol)
             
             # Elitism: Compare offspring with current_sol
             if offspring_sol.makespan < current_sol.makespan:
-                print(f"  Solution {i}: Improvement! {current_sol.makespan} -> {offspring_sol.makespan}")
+                if verbose:
+                    print(f"  Solution {i}: Improvement! {current_sol.makespan} -> {offspring_sol.makespan}")
                 new_population.append(offspring_sol)
             else:
-                print(f"  Solution {i}: No improvement. {current_sol.makespan} -> {offspring_sol.makespan}")
+                if verbose:
+                    print(f"  Solution {i}: No improvement. {current_sol.makespan} -> {offspring_sol.makespan}")
                 new_population.append(current_sol)
 
         population = new_population
         current_best_in_pop = min(population, key=lambda s: s.makespan)
         if current_best_in_pop.makespan < best_solution_overall.makespan:
             best_solution_overall = copy.deepcopy(current_best_in_pop) # Deepcopy to save state
-            print(f"  New overall best solution found! Makespan: {best_solution_overall.makespan}")
+            if verbose:
+                print(f"  New overall best solution found! Makespan: {best_solution_overall.makespan}")
 
-    print(f"Algorithm completed. Final best makespan: {best_solution_overall.makespan}")
+    if verbose:
+        print(f"Algorithm completed. Final best makespan: {best_solution_overall.makespan}")
     return best_solution_overall
 
 
@@ -1106,7 +1011,7 @@ if __name__ == '__main__':
     print(f"Decoded makespan: {makespan}")
     
     # Run the full algorithm
-    best_found_solution = iaoa_gns_algorithm(problem_instance, POP_SIZE, MAX_ITERATIONS)
+    best_found_solution = iaoa_gns_algorithm(problem_instance, POP_SIZE, MAX_ITERATIONS, verbose=True)
     
     print("\n--- Best Solution Found ---")
     if best_found_solution and best_found_solution.makespan != float('inf'):

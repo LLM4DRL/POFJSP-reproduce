@@ -8,6 +8,7 @@ defaults:
 
 # Global configuration
 random_seed: 42
+verbose: false  # Control algorithm and RL agent verbosity
 
 # Algorithm configuration
 algorithm:
@@ -104,7 +105,7 @@ rl:
 visualization:
   enabled: true  # Enable/disable visualization generation
   figsize: [10, 6]  # Default figure size [width, height]
-  save_formats: [png, pdf]  # Output formats
+  save_formats: [png]  # Output formats
   save_path: figures  # Base path for saving figures
   dataset_stats: true  # Generate dataset statistics visualizations
   gantt_charts: true  # Generate Gantt charts for schedules

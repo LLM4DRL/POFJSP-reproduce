@@ -31,7 +31,7 @@ dataset:
 # Custom visualization settings
 visualization:
   figsize: [12, 8]  # Larger figures
-  save_formats: [png, pdf, svg]  # Additional SVG format
+  save_formats: [png, svg]  # Additional SVG format
   save_path: figures/custom_experiment
   
 # Custom experiment description

@@ -1,6 +1,7 @@
 # Configuration for RL mode
 # This mode trains and evaluates a PPO agent on the POFJSP benchmark
 
+mode: rl
 enabled: true
 
 # RL Agent parameters

@@ -5,7 +5,7 @@ mode: visualize
 visualization:
   enabled: true
   figsize: [12, 8]  # Larger figures for better quality
-  save_formats: [png, pdf, svg]  # Add SVG for vector graphics
+  save_formats: [png, svg]  # Add SVG for vector graphics
   save_path: figures
   dataset_stats: true
   gantt_charts: true

@@ -50,11 +50,9 @@ class POFJSPEnv(gym.Env):
         self.num_machines = self.problem.num_machines
         self.num_operations = self.problem.total_operations
         
-        # Define action and observation spaces
-        self.action_space = spaces.Dict({
-            "operation_idx": spaces.Discrete(self.num_operations),
-            "machine_idx": spaces.Discrete(self.num_machines)
-        })
+        # Define action space as a single Discrete space
+        # Use a flattened representation: action = operation_idx * num_machines + machine_idx
+        self.action_space = spaces.Discrete(self.num_operations * self.num_machines)
         
         # Observation space includes:
         # - Machine ready times (num_machines)
@@ -180,10 +178,15 @@ class POFJSPEnv(gym.Env):
         
         return observation.astype(np.float32)
     
-    def _is_valid_action(self, action_dict: Dict) -> bool:
+    def _decode_action(self, action: int) -> Tuple[int, int]:
+        """Decode flattened action into operation_idx and machine_idx."""
+        op_idx = action // self.num_machines
+        machine_idx = action % self.num_machines
+        return op_idx, machine_idx
+    
+    def _is_valid_action(self, action: int) -> bool:
         """Check if an action is valid."""
-        op_idx = action_dict["operation_idx"]
-        machine_idx = action_dict["machine_idx"]
+        op_idx, machine_idx = self._decode_action(action)
         
         # Check if operation index is valid
         if op_idx >= self.num_operations:
@@ -204,12 +207,12 @@ class POFJSPEnv(gym.Env):
         
         return True
     
-    def step(self, action: Dict) -> Tuple[np.ndarray, float, bool, Dict]:
+    def step(self, action: int) -> Tuple[np.ndarray, float, bool, Dict]:
         """
         Take a scheduling action.
         
         Args:
-            action: Dictionary with operation_idx and machine_idx
+            action: Flattened action index (operation_idx * num_machines + machine_idx)
             
         Returns:
             observation, reward, done, info
@@ -221,8 +224,7 @@ class POFJSPEnv(gym.Env):
             return self._get_observation(), -100, False, {"invalid_action": True}
         
         # Extract action components
-        op_idx = action["operation_idx"]
-        machine_idx = action["machine_idx"]
+        op_idx, machine_idx = self._decode_action(action)
         operation = self.idx_to_op[op_idx]
         
         # Get processing time
