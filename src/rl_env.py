@@ -4,9 +4,9 @@ Reinforcement Learning Environment for Partial Order FJSP
 This module implements a Gym environment for solving the POFJSP using RL.
 """
 
-import gym
+import gymnasium as gym
 import numpy as np
-from gym import spaces
+from gymnasium import spaces
 from typing import Dict, List, Tuple, Optional, Any, Union
 import copy
 
@@ -84,7 +84,8 @@ class POFJSPEnv(gym.Env):
     
     def seed(self, seed: Optional[int] = None) -> List[int]:
         """Set the seed for this environment's random number generator."""
-        self.np_random, seed = gym.utils.seeding.np_random(seed)
+        super().reset(seed=seed)
+        self.np_random = np.random.RandomState(seed)
         return [seed]
     
     def _initialize_operation_mappings(self):
@@ -101,8 +102,10 @@ class POFJSPEnv(gym.Env):
                 self.idx_to_op[idx] = op
                 idx += 1
     
-    def reset(self) -> np.ndarray:
+    def reset(self, seed=None, options=None) -> Tuple[np.ndarray, Dict]:
         """Reset the environment to initial state."""
+        super().reset(seed=seed)
+        
         self.step_count = 0
         self.done = False
         self.current_time = 0
@@ -111,7 +114,7 @@ class POFJSPEnv(gym.Env):
         self.job_ready_times = np.zeros(self.problem.num_jobs)
         self.schedule_details = {}
         
-        return self._get_observation()
+        return self._get_observation(), {}
     
     def _get_available_operations(self) -> List[Operation]:
         """Get operations available for scheduling."""
@@ -207,7 +210,7 @@ class POFJSPEnv(gym.Env):
         
         return True
     
-    def step(self, action: int) -> Tuple[np.ndarray, float, bool, Dict]:
+    def step(self, action: int) -> Tuple[np.ndarray, float, bool, bool, Dict]:
         """
         Take a scheduling action.
         
@@ -215,13 +218,13 @@ class POFJSPEnv(gym.Env):
             action: Flattened action index (operation_idx * num_machines + machine_idx)
             
         Returns:
-            observation, reward, done, info
+            observation, reward, terminated, truncated, info
         """
         self.step_count += 1
         
         # Handle case when the action is invalid
         if not self._is_valid_action(action):
-            return self._get_observation(), -100, False, {"invalid_action": True}
+            return self._get_observation(), -100, False, False, {"invalid_action": True}
         
         # Extract action components
         op_idx, machine_idx = self._decode_action(action)
@@ -257,12 +260,15 @@ class POFJSPEnv(gym.Env):
         reward = -proc_time  # Simple reward based on processing time
         
         # Check termination conditions
+        terminated = False
+        truncated = False
+        
         if len(self.scheduled_operations) == self.num_operations:
-            self.done = True
+            terminated = True
             # Additional reward for completion
             reward += 50
         elif self.step_count >= self.time_limit:
-            self.done = True
+            truncated = True
             # Penalty for not completing
             reward -= 50
         
@@ -273,7 +279,7 @@ class POFJSPEnv(gym.Env):
             "total_ops": self.num_operations,
         }
         
-        return self._get_observation(), reward, self.done, info
+        return self._get_observation(), reward, terminated, truncated, info
     
     def get_solution(self) -> Solution:
         """Convert current schedule to a Solution object."""

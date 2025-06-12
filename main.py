@@ -478,12 +478,21 @@ def _run_rl_mode(cfg: DictConfig):
     training_cfg = cfg.rl.training
     verbose = cfg.verbose
     
-    # Process each problem instance
-    for idx, (instance_id, problem) in enumerate(problem_instances.items()):
+    # Import tqdm for progress tracking
+    from tqdm.auto import tqdm
+    
+    # Process each problem instance with progress bar
+    if verbose:
+        instance_iterator = [(instance_id, problem) for instance_id, problem in problem_instances.items()]
+    else:
+        instance_iterator = tqdm(
+            [(instance_id, problem) for instance_id, problem in problem_instances.items()],
+            desc="Processing RL instances"
+        )
+        
+    for instance_id, problem in instance_iterator:
         if verbose:
-            print(f"\nProcessing instance {idx+1}/{len(problem_instances)}: {instance_id}")
-        else:
-            print(f"Processing RL instance: {idx+1}/{len(problem_instances)}\r", end="")
+            print(f"\nProcessing instance: {instance_id}")
         
         # Train PPO agent for this instance
         agent_save_path = None

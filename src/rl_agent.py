@@ -8,9 +8,9 @@ import os
 import time
 import numpy as np
 from typing import Dict, List, Tuple, Optional, Any, Union
-import gym
-import gymnasium
+import gymnasium as gym
 import torch as th
+from tqdm.auto import tqdm
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
@@ -39,14 +39,15 @@ class SaveBestSolutionCallback(BaseCallback):
         # Periodically evaluate the agent
         if self.n_calls % 1000 == 0:
             # Run evaluation episode
-            obs = self.eval_env.reset()
-            done = False
-            while not done:
+            obs, _ = self.eval_env.reset()
+            terminated = truncated = False
+            
+            while not (terminated or truncated):
                 action, _ = self.model.predict(obs, deterministic=True)
-                obs, _, done, info = self.eval_env.step(action)
+                obs, _, terminated, truncated, info = self.eval_env.step(action)
             
             # Check if better solution found
-            current_makespan = info["makespan"]
+            current_makespan = info.get("makespan", float('inf'))
             if current_makespan < self.best_makespan:
                 self.best_makespan = current_makespan
                 self.best_solution = self.eval_env.get_solution()
@@ -54,6 +55,36 @@ class SaveBestSolutionCallback(BaseCallback):
                     print(f"New best makespan: {self.best_makespan}")
         
         return True
+
+
+class TQDMCallback(BaseCallback):
+    """
+    Custom callback for updating a tqdm progress bar during training.
+    """
+    def __init__(self, total_timesteps, verbose=0):
+        super(TQDMCallback, self).__init__(verbose)
+        self.total_timesteps = total_timesteps
+        self.pbar = None
+        
+    def _on_training_start(self) -> None:
+        """Initialize progress bar at the start of training."""
+        self.pbar = tqdm(total=self.total_timesteps, desc="Training Progress")
+
+    def _on_step(self) -> bool:
+        """Update progress bar on each step."""
+        # Calculate the steps taken since the last update
+        if self.n_calls > 1:
+            step_size = self.n_calls - self.pbar.n
+            self.pbar.update(step_size)
+        else:
+            self.pbar.update(1)
+        return True
+        
+    def _on_training_end(self) -> None:
+        """Close the progress bar when training ends."""
+        if self.pbar is not None:
+            self.pbar.close()
+            self.pbar = None
 
 
 class POFJSPAgent:
@@ -108,7 +139,7 @@ class POFJSPAgent:
     def _make_env(self, problem_instance: ProblemInstance, seed: int) -> POFJSPEnv:
         """Create a POFJSP environment."""
         env = POFJSPEnv(problem_instance, time_limit=problem_instance.total_operations * 2)
-        env.seed(seed)
+        # Seed handled in reset method in Gymnasium
         return env
     
     def setup_environment(self, problem_instance: ProblemInstance, n_envs: int = 4) -> None:
@@ -163,20 +194,22 @@ class POFJSPAgent:
         if self.model is None:
             raise ValueError("Model must be set up before training")
         
-        # Create callback to save best solution
-        callback = SaveBestSolutionCallback(self.eval_env, verbose=1 if self.verbose else 0)
+        # Create callbacks for best solution saving and progress tracking
+        save_callback = SaveBestSolutionCallback(self.eval_env, verbose=1 if self.verbose else 0)
+        tqdm_callback = TQDMCallback(total_timesteps=total_timesteps)
+        callbacks = [save_callback, tqdm_callback]
         
         # Train the model
         start_time = time.time()
         self.model.learn(
             total_timesteps=total_timesteps,
-            callback=callback,
+            callback=callbacks,
         )
         training_time = time.time() - start_time
         
         # Store best solution
-        self.best_solution = callback.best_solution
-        self.best_makespan = callback.best_makespan
+        self.best_solution = save_callback.best_solution
+        self.best_makespan = save_callback.best_makespan
         
         if self.verbose:
             print(f"Training completed in {training_time:.2f} seconds")
