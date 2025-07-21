@@ -1,0 +1,29 @@
+# Genetic Algorithm Configuration
+
+algorithm:
+  name: "Genetic Algorithm"
+  type: "evolutionary"
+
+parameters:
+  population_size: 100
+  max_generations: 1000
+  elite_size: 10
+  tournament_size: 5
+
+operators:
+  crossover_rate: 0.8
+  mutation_rate: 0.1
+  elitism_rate: 0.1
+  selection_method: "tournament"
+  crossover_method: "order"
+  mutation_method: "swap"
+
+termination:
+  max_stagnation: 100
+  target_fitness: null
+  time_limit: 3600  # seconds
+
+output:
+  save_population: false
+  plot_fitness: true
+  detailed_logging: false 

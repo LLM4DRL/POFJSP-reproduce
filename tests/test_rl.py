@@ -12,9 +12,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 
-from algorithms import Operation, ProblemInstance
-from rl_env import POFJSPEnv
-from rl_agent import POFJSPAgent, train_ppo_agent
+from src.problems.problem_instance import Operation, ProblemInstance
+from src.rl.environments.pofjsp_env import POFJSPEnv
+from src.rl.models.ppo_agent import PPOAgent
 
 
 class TestRLEnvironment(unittest.TestCase):

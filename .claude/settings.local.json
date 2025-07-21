@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(python:*)",
+      "Bash(chmod:*)",
+      "Bash(rm:*)",
+      "Bash(grep:*)",
+      "Bash(sed:*)",
+      "Bash(find:*)",
+      "Bash(pip install:*)",
+      "Bash(ls:*)",
+      "Bash(echo:*)",
+      "Bash(cat:*)",
+      "Bash(mv:*)",
+      "Bash(conda activate:*)",
+      "Bash(where conda)",
+      "Bash(call H:pinokiobinminicondacondabinconda.bat activate quant)",
+      "Bash(H:pinokiobinminicondacondabinconda.bat activate quant)"
+    ],
+    "deny": []
+  }
+}

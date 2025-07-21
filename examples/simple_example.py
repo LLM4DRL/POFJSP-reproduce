@@ -19,6 +19,7 @@ from algorithms import (
     ProblemInstance, Solution, Operation,
     iaoa_gns_algorithm, decode_solution
 )
+from data_loader import POFJSPDataLoader
 
 
 def create_simple_problem():
@@ -276,6 +277,59 @@ def compare_algorithms():
     print(f"\nBest configuration: {best_config} with makespan {best_makespan}")
 
 
+def test_with_dataset():
+    """Test algorithm with generated dataset instances."""
+    print("=" * 60)
+    print("DATASET EXAMPLE: Testing with Generated Data")
+    print("=" * 60)
+    
+    # Initialize data loader
+    script_dir = os.path.dirname(__file__)
+    data_dir = os.path.join(script_dir, '..', 'data')
+    loader = POFJSPDataLoader(data_dir)
+    
+    # List available datasets
+    datasets = loader.list_available_datasets()
+    print(f"Available datasets: {datasets}")
+    
+    if not datasets:
+        print("No datasets found. Use the control center to generate datasets:")
+        print("  python main.py generate-data --dataset-name development --instances-per-config 5")
+        return
+    
+    # Use first available dataset
+    dataset_name = datasets[0]
+    print(f"Using dataset: {dataset_name}")
+    
+    # Get dataset statistics
+    stats = loader.get_dataset_statistics(dataset_name)
+    print(f"Dataset statistics:")
+    print(f"  Total instances: {stats['total_instances']}")
+    print(f"  Complexity range: {stats['complexity_stats']['min']:.1f} - {stats['complexity_stats']['max']:.1f}")
+    print(f"  Operations range: {stats['operations_stats']['min']} - {stats['operations_stats']['max']}")
+    print()
+    
+    # Load some instances for testing
+    instances = loader.load_instances_by_criteria(
+        dataset_name=dataset_name,
+        max_instances=3
+    )
+    
+    print(f"Testing with {len(instances)} instances:")
+    
+    # Test algorithm on loaded instances
+    for instance_id, problem_instance in instances:
+        print(f"\nTesting instance: {instance_id}")
+        print(f"  Jobs: {problem_instance.num_jobs}, Machines: {problem_instance.num_machines}")
+        print(f"  Total operations: {problem_instance.total_operations}")
+        
+        try:
+            solution = iaoa_gns_algorithm(problem_instance, pop_size=20, max_iterations=30)
+            print(f"  Best makespan: {solution.makespan:.2f}")
+        except Exception as e:
+            print(f"  Error running algorithm: {e}")
+
+
 if __name__ == "__main__":
     print("POFJSP Algorithm Demonstration")
     print("IAOA+GNS: Improved Arithmetic Optimization Algorithm + Grade Neighborhood Search")
@@ -286,6 +340,7 @@ if __name__ == "__main__":
         run_simple_example()
         run_complex_example()
         compare_algorithms()
+        test_with_dataset()
         
         print("=" * 60)
         print("EXAMPLES COMPLETED SUCCESSFULLY!")
@@ -293,9 +348,10 @@ if __name__ == "__main__":
         print("\nNext steps:")
         print("1. Try modifying the problem instances in this script")
         print("2. Experiment with different algorithm parameters")
-        print("3. Create your own problem instances using the ProblemInstance class")
-        print("4. Explore visualization tools (when available)")
-        print("5. Run the test suite: python -m pytest tests/")
+        print("3. Use the control center: python main.py --help")
+        print("4. Generate datasets: python main.py generate-data")
+        print("5. Run parameter studies: python examples/algorithm_parameter_study.py")
+        print("6. Create visualizations: python examples/visualization_example.py")
         
     except Exception as e:
         print(f"Error during execution: {e}")

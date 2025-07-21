@@ -47,7 +47,7 @@ def generate_dataset_visualizations():
     if not available_datasets:
         print("No datasets available. Generating a development dataset...")
         subprocess.run(
-            "python main.py mode=generate dataset.name=development dataset.instances_per_config=3",
+            "python main.py generate-data --dataset-name development --instances-per-config 3",
             shell=True,
             check=True
         )

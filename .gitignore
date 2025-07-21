@@ -112,3 +112,17 @@ figures/*
 !figures/dataset/
 !figures/analysis/
 !figures/comparison/
+
+archive/
+
+logs/
+
+
+outputs/
+
+figures/
+
+
+
+
+

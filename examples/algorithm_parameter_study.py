@@ -42,8 +42,8 @@ def run_evaluation(params, dataset_name="dev_experiment"):
     timestamp = int(time.time())
     result_file = f"results_{timestamp}.csv"
     
-    # Build full command
-    cmd = f"python main.py mode=evaluate dataset.name={dataset_name} {param_str}"
+    # Build full command - use control center evaluate command
+    cmd = f"python main.py evaluate --dataset-name {dataset_name} {param_str}"
     
     print(f"Running: {cmd}")
     
@@ -102,7 +102,7 @@ def conduct_parameter_study():
     # First, make sure we have a development dataset
     print("Ensuring development dataset exists...")
     subprocess.run(
-        "python main.py mode=generate dataset.name=dev_experiment dataset.instances_per_config=3",
+        "python main.py generate-data --dataset-name dev_experiment --instances-per-config 3",
         shell=True,
         check=True
     )

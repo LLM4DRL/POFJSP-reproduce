@@ -1,583 +1,528 @@
 #!/usr/bin/env python3
 """
-Main entry point for POFJSP algorithm reproduction using Hydra for configuration management.
+POFJSP Control Center - Multi-Task Handler
+
+This script serves as the central control hub for the POFJSP repository, providing:
+- Algorithm execution (IAOA+GNS, GA, SA, Tabu, RL)
+- Code formatting and linting
+- Repository health checks
+- Git pre-commit utilities
+- Training pipeline management
+- Data processing tools
 
 Usage:
-    python main.py                     # Run with default config
-    python main.py dataset=benchmark   # Override dataset config
-    python main.py algorithm.pop_size=50 algorithm.max_iterations=100  # Override algorithm parameters
-    python main.py --config-name=custom_experiment  # Use a different config file
-    python main.py mode=visualize      # Run visualization only
-    python main.py mode=rl             # Train and evaluate a PPO agent
-    python main.py multiprocessing.enabled=true  # Enable parallel processing
+    # Algorithm execution
+    python main.py --algorithm iaoa_gns --problem data/benchmark/sample.json
+    python main.py --algorithm rl --train --fast-mode
+    
+    # Development tools
+    python main.py --format --check
+    python main.py --health-check
+    python main.py --setup-hooks
+    
+    # Training management
+    python main.py --train-rl --output-dir ./outputs/full_training
+    python main.py --compare-algorithms --dataset data/benchmark
 """
 
+import argparse
 import os
 import sys
-from pathlib import Path
-import hydra
-from omegaconf import DictConfig, OmegaConf
-import datetime
-import pandas as pd
+import json
+import subprocess
 import time
+from pathlib import Path
+import importlib.util
+from typing import Dict, List, Optional
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent / 'src'))
-
-from data_loader import POFJSPDataLoader
-from data_generator import POFJSPDataGenerator
-from algorithms import iaoa_gns_algorithm, ProblemInstance
-
-# Import visualization module
-from src.visualization import visualize
-from src.visualization.visualize import visualize_solution
-
-# Import RL modules when needed
-from src.rl_agent import train_ppo_agent, POFJSPAgent
-from src.rl_env import POFJSPEnv
+# Add current directory to path for absolute imports
+sys.path.insert(0, str(Path(__file__).parent))
 
 
-@hydra.main(version_base=None, config_path="conf", config_name="config")
-def main(cfg: DictConfig):
-    """
-    Main entry point for running POFJSP experiments.
+class POFJSPControlCenter:
+    """Central control hub for POFJSP repository operations."""
     
-    Args:
-        cfg: Hydra configuration object
-    """
-    print(f"{'='*50}")
-    print(f"POFJSP Algorithm Reproduction")
-    print(f"{'='*50}")
-    print(f"Working directory: {os.getcwd()}")
-    print(f"Configuration:\n{OmegaConf.to_yaml(cfg)}")
-    print(f"{'='*50}")
+    def __init__(self, verbose: bool = False):
+        self.repo_root = Path(__file__).parent
+        self.verbose = verbose
+        self.available_algorithms = {
+            'iaoa_gns': 'IAOA+GNS (Hierarchical Neighborhood Strategy)',
+            'ga': 'Genetic Algorithm',
+            'sa': 'Simulated Annealing',
+            'tabu': 'Tabu Search',
+            'rl': 'Reinforcement Learning (GNN+PPO)'
+        }
     
-    # Store original working directory for use by other modules
-    original_cwd = hydra.utils.get_original_cwd()
+    def log(self, message: str, level: str = "INFO"):
+        """Log messages with timestamp."""
+        if self.verbose or level in ["ERROR", "SUCCESS"]:
+            timestamp = time.strftime("%H:%M:%S")
+            print(f"[{timestamp}] {level}: {message}")
     
-    # Get mode from config
-    mode = cfg.mode.mode if hasattr(cfg, 'mode') and hasattr(cfg.mode, 'mode') else "evaluate"
+    # =============================================================================
+    # ALGORITHM EXECUTION
+    # =============================================================================
     
-    # Ensure compatibility with original code paths
-    data_dir = Path(original_cwd) / cfg.dataset.path
-    
-    # Determine operation mode
-    if mode == "generate":
-        instances = _generate_dataset(cfg)
+    def run_algorithm(self, algorithm: str, **kwargs) -> int:
+        """Run specified algorithm with parameters."""
+        self.log(f"Starting {algorithm} algorithm...")
         
-        # Visualize the generated dataset if requested
-        if cfg.visualization.dataset_stats:
-            visualize.visualize_dataset(cfg, data_dir)
+        if algorithm == 'iaoa_gns':
+            return self._run_iaoa_gns(**kwargs)
+        elif algorithm == 'ga':
+            return self._run_genetic_algorithm(**kwargs)
+        elif algorithm == 'sa':
+            return self._run_simulated_annealing(**kwargs)
+        elif algorithm == 'tabu':
+            return self._run_tabu_search(**kwargs)
+        elif algorithm == 'rl':
+            return self._run_reinforcement_learning(**kwargs)
+        else:
+            self.log(f"Unknown algorithm: {algorithm}", "ERROR")
+            return 1
+    
+    def _run_iaoa_gns(self, **kwargs) -> int:
+        """Run IAOA+GNS algorithm."""
+        cmd = [sys.executable, 'src/algorithms/iaoa_gns.py']
+        return self._execute_command(cmd)
+    
+    def _run_genetic_algorithm(self, **kwargs) -> int:
+        """Run Genetic Algorithm."""
+        cmd = [sys.executable, 'src/algorithms/genetic_algorithm.py']
+        return self._execute_command(cmd)
+    
+    def _run_simulated_annealing(self, **kwargs) -> int:
+        """Run Simulated Annealing."""
+        cmd = [sys.executable, 'src/algorithms/simulated_annealing.py']
+        return self._execute_command(cmd)
+    
+    def _run_tabu_search(self, **kwargs) -> int:
+        """Run Tabu Search."""
+        cmd = [sys.executable, 'src/algorithms/tabu_search.py']
+        return self._execute_command(cmd)
+    
+    def _run_reinforcement_learning(self, **kwargs) -> int:
+        """Run Reinforcement Learning training."""
+        if kwargs.get('train'):
+            cmd = [sys.executable, 'scripts/training/rl_training.py']
+            if kwargs.get('output_dir'):
+                cmd.extend(['--output-dir', kwargs['output_dir']])
+            if kwargs.get('fast_mode'):
+                cmd.append('--fast-mode')
+            if not kwargs.get('cuda', True):
+                cmd.append('--no-cuda')
+        else:
+            # Run RL solve mode (placeholder)
+            self.log("RL solve mode not yet implemented", "ERROR")
+            return 1
+        
+        return self._execute_command(cmd)
+    
+    # =============================================================================
+    # CODE FORMATTING AND LINTING
+    # =============================================================================
+    
+    def format_code(self, check_only: bool = False, files: Optional[List[str]] = None) -> int:
+        """Format Python code using ruff and black."""
+        self.log("Starting code formatting...")
+        
+        # Install formatting tools if not available
+        if not self._check_tool_available('ruff'):
+            self.log("Installing ruff...")
+            if self._execute_command([sys.executable, '-m', 'pip', 'install', 'ruff']) != 0:
+                self.log("Failed to install ruff", "ERROR")
+                return 1
+        
+        if not self._check_tool_available('black'):
+            self.log("Installing black...")
+            if self._execute_command([sys.executable, '-m', 'pip', 'install', 'black']) != 0:
+                self.log("Failed to install black", "ERROR")
+                return 1
+        
+        # Determine files to format
+        if files is None:
+            files = ['src', 'scripts', 'tests', 'main.py']
+        
+        exit_code = 0
+        
+        # Run ruff for linting and import sorting
+        self.log("Running ruff linter...")
+        ruff_cmd = [sys.executable, '-m', 'ruff', 'check'] + files
+        if not check_only:
+            ruff_cmd.append('--fix')
+        
+        if self._execute_command(ruff_cmd) != 0:
+            exit_code = 1
+        
+        # Run black for code formatting
+        self.log("Running black formatter...")
+        black_cmd = [sys.executable, '-m', 'black']
+        if check_only:
+            black_cmd.append('--check')
+        black_cmd.extend(files)
+        
+        if self._execute_command(black_cmd) != 0:
+            exit_code = 1
+        
+        if exit_code == 0:
+            self.log("Code formatting completed successfully", "SUCCESS")
+        else:
+            self.log("Code formatting found issues", "ERROR")
+        
+        return exit_code
+    
+    def run_type_check(self) -> int:
+        """Run mypy type checking."""
+        self.log("Running type checking...")
+        
+        if not self._check_tool_available('mypy'):
+            self.log("Installing mypy...")
+            if self._execute_command([sys.executable, '-m', 'pip', 'install', 'mypy']) != 0:
+                self.log("Failed to install mypy", "ERROR")
+                return 1
+        
+        cmd = [sys.executable, '-m', 'mypy', 'src', '--ignore-missing-imports']
+        return self._execute_command(cmd)
+    
+    # =============================================================================
+    # REPOSITORY HEALTH CHECK
+    # =============================================================================
+    
+    def run_health_check(self) -> int:
+        """Run repository health check."""
+        self.log("Running repository health check...")
+        
+        health_check_script = self.repo_root / 'scripts' / 'repo_health_check.py'
+        if not health_check_script.exists():
+            self.log("Health check script not found", "ERROR")
+            return 1
+        
+        cmd = [sys.executable, str(health_check_script)]
+        if self.verbose:
+            cmd.append('--verbose')
+        
+        return self._execute_command(cmd)
+    
+    # =============================================================================
+    # GIT AND PRE-COMMIT HOOKS
+    # =============================================================================
+    
+    def setup_git_hooks(self) -> int:
+        """Setup git pre-commit hooks."""
+        self.log("Setting up git pre-commit hooks...")
+        
+        # Install pre-commit if not available
+        if not self._check_tool_available('pre-commit'):
+            self.log("Installing pre-commit...")
+            if self._execute_command([sys.executable, '-m', 'pip', 'install', 'pre-commit']) != 0:
+                self.log("Failed to install pre-commit", "ERROR")
+                return 1
+        
+        # Create .pre-commit-config.yaml if it doesn't exist
+        precommit_config = self.repo_root / '.pre-commit-config.yaml'
+        if not precommit_config.exists():
+            self._create_precommit_config(precommit_config)
+        
+        # Install the hooks
+        cmd = [sys.executable, '-m', 'pre-commit', 'install']
+        return self._execute_command(cmd)
+    
+    def _create_precommit_config(self, config_path: Path):
+        """Create a pre-commit configuration file."""
+        config_content = """repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.1.6
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+  
+  - repo: https://github.com/psf/black
+    rev: 23.12.0
+    hooks:
+      - id: black
+        language_version: python3
+  
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+        args: ['--maxkb=10000']
+      - id: check-merge-conflict
+  
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.7.1
+    hooks:
+      - id: mypy
+        additional_dependencies: [types-all]
+        args: [--ignore-missing-imports]
+"""
+        with open(config_path, 'w') as f:
+            f.write(config_content)
+        self.log(f"Created pre-commit config: {config_path}")
+    
+    def run_pre_commit_check(self) -> int:
+        """Run pre-commit checks on all files."""
+        self.log("Running pre-commit checks...")
+        
+        if not self._check_tool_available('pre-commit'):
+            self.log("pre-commit not installed. Run --setup-hooks first.", "ERROR")
+            return 1
+        
+        cmd = [sys.executable, '-m', 'pre-commit', 'run', '--all-files']
+        return self._execute_command(cmd)
+    
+    # =============================================================================
+    # TRAINING MANAGEMENT
+    # =============================================================================
+    
+    def run_full_rl_training(self, output_dir: str = './outputs/full_training', 
+                           fast_mode: bool = False, no_cuda: bool = False) -> int:
+        """Run comprehensive RL training pipeline."""
+        self.log("Starting comprehensive RL training...")
+        
+        cmd = [sys.executable, 'scripts/training/rl_training.py', '--output-dir', output_dir]
+        if fast_mode:
+            cmd.append('--fast-mode')
+        if no_cuda:
+            cmd.append('--no-cuda')
+        
+        return self._execute_command(cmd)
+    
+    def compare_algorithms(self, dataset_dir: str) -> int:
+        """Run algorithm comparison on dataset."""
+        self.log("Running algorithm comparison...")
+        
+        # This would run all algorithms on the same dataset and compare results
+        # For now, just run the algorithms sequentially
+        results = {}
+        
+        for algo in self.available_algorithms.keys():
+            if algo == 'rl':  # Skip RL for now as it needs training
+                continue
             
-    elif mode == "evaluate":
-        results = _evaluate_algorithm(cfg)
-        
-        # Visualize results if requested
-        if cfg.visualization.enabled:
-            visualize.run_visualization(cfg, results)
+            self.log(f"Running {algo}...")
+            start_time = time.time()
+            exit_code = self.run_algorithm(algo)
+            end_time = time.time()
             
-    elif mode == "reproduce":
-        results = _reproduce_results(cfg)
+            results[algo] = {
+                'exit_code': exit_code,
+                'duration': end_time - start_time
+            }
         
-        # Visualize comparison if requested
-        if cfg.visualization.enabled:
-            visualize.run_visualization(cfg, results)
-            
-    elif mode == "visualize":
-        # Run only visualization for existing results
-        visualize.run_visualization(cfg)
+        # Print comparison results
+        self.log("Algorithm comparison results:", "SUCCESS")
+        for algo, result in results.items():
+            status = "SUCCESS" if result['exit_code'] == 0 else "FAILED"
+            duration = result['duration']
+            print(f"  {algo}: {status} ({duration:.2f}s)")
         
-    elif mode == "rl":
-        # Train and evaluate a PPO agent
-        results = _run_rl_mode(cfg)
-        
-        # Visualize results if requested
-        if cfg.rl.visualization.enabled:
-            visualize.run_visualization(cfg, results)
-            
-    else:
-        raise ValueError(f"Unknown mode: {mode}")
+        return 0
     
-    print(f"\n✅ Execution completed successfully!")
+    # =============================================================================
+    # UTILITY METHODS
+    # =============================================================================
+    
+    def _check_tool_available(self, tool: str) -> bool:
+        """Check if a command-line tool is available."""
+        try:
+            subprocess.run([tool, '--version'], capture_output=True, check=True)
+            return True
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            return False
+    
+    def _execute_command(self, cmd: List[str]) -> int:
+        """Execute a command and return exit code."""
+        try:
+            if self.verbose:
+                self.log(f"Executing: {' '.join(cmd)}")
+            
+            result = subprocess.run(cmd, cwd=self.repo_root)
+            return result.returncode
+        except Exception as e:
+            self.log(f"Command execution failed: {e}", "ERROR")
+            return 1
+    
+    def list_algorithms(self):
+        """List available algorithms."""
+        print("Available algorithms:")
+        for algo, desc in self.available_algorithms.items():
+            print(f"  {algo}: {desc}")
+    
+    def show_status(self):
+        """Show repository and system status."""
+        print("POFJSP Repository Status")
+        print("=" * 50)
+        
+        # Check git status
+        try:
+            result = subprocess.run(['git', 'status', '--porcelain'], 
+                                  capture_output=True, text=True, cwd=self.repo_root)
+            if result.returncode == 0:
+                changes = result.stdout.strip()
+                if changes:
+                    print(f"Git: {len(changes.splitlines())} uncommitted changes")
+                else:
+                    print("Git: Clean working directory")
+            else:
+                print("Git: Not a git repository or git not available")
+        except FileNotFoundError:
+            print("Git: Not available")
+        
+        # Check Python environment
+        print(f"Python: {sys.version.split()[0]} ({sys.executable})")
+        
+        # Check key dependencies
+        key_packages = ['torch', 'numpy', 'matplotlib', 'hydra-core']
+        for package in key_packages:
+            try:
+                __import__(package)
+                print(f"{package}: [OK] Available")
+            except ImportError:
+                print(f"{package}: [MISSING] Not installed")
+        
+        # Check CUDA availability
+        try:
+            import torch
+            if torch.cuda.is_available():
+                print(f"CUDA: [OK] Available ({torch.cuda.device_count()} devices)")
+            else:
+                print("CUDA: [NO] Not available")
+        except ImportError:
+            print("CUDA: [NO] PyTorch not available")
+
+
+def create_parser():
+    """Create command-line argument parser."""
+    parser = argparse.ArgumentParser(
+        description="POFJSP Control Center - Multi-Task Handler",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Algorithm execution
+  python main.py --algorithm iaoa_gns
+  python main.py --algorithm rl --train --fast-mode
+  
+  # Development tools
+  python main.py --format --check
+  python main.py --health-check
+  python main.py --setup-hooks
+  
+  # Training and analysis
+  python main.py --train-rl --output-dir ./outputs/production
+  python main.py --compare-algorithms --dataset data/benchmark
+  python main.py --status
+        """
+    )
+    
+    # Main operation modes
+    parser.add_argument('--algorithm', '-a', 
+                       choices=['iaoa_gns', 'ga', 'sa', 'tabu', 'rl'],
+                       help='Run specific algorithm')
+    parser.add_argument('--list-algorithms', action='store_true',
+                       help='List available algorithms')
+    parser.add_argument('--status', action='store_true',
+                       help='Show repository and system status')
+    
+    # Development tools
+    parser.add_argument('--format', action='store_true',
+                       help='Format code using ruff and black')
+    parser.add_argument('--check', action='store_true',
+                       help='Check code formatting without making changes')
+    parser.add_argument('--type-check', action='store_true',
+                       help='Run mypy type checking')
+    parser.add_argument('--health-check', action='store_true',
+                       help='Run repository health check')
+    parser.add_argument('--setup-hooks', action='store_true',
+                       help='Setup git pre-commit hooks')
+    parser.add_argument('--pre-commit-check', action='store_true',
+                       help='Run pre-commit checks on all files')
+    
+    # Training and analysis
+    parser.add_argument('--train-rl', action='store_true',
+                       help='Run comprehensive RL training')
+    parser.add_argument('--train', action='store_true',
+                       help='Enable training mode for RL')
+    parser.add_argument('--compare-algorithms', action='store_true',
+                       help='Compare all algorithms on dataset')
+    
+    # Options
+    parser.add_argument('--output-dir', type=str, default='./outputs',
+                       help='Output directory for results')
+    parser.add_argument('--dataset', type=str,
+                       help='Dataset directory for analysis')
+    parser.add_argument('--fast-mode', action='store_true',
+                       help='Use fast mode (reduced training time)')
+    parser.add_argument('--no-cuda', action='store_true',
+                       help='Disable CUDA acceleration')
+    parser.add_argument('--verbose', '-v', action='store_true',
+                       help='Enable verbose output')
+    
+    return parser
+
+
+def main():
+    """Main entry point."""
+    parser = create_parser()
+    args = parser.parse_args()
+    
+    # Create control center
+    control_center = POFJSPControlCenter(verbose=args.verbose)
+    
+    # Handle different operation modes
+    if args.list_algorithms:
+        control_center.list_algorithms()
+        return 0
+    
+    if args.status:
+        control_center.show_status()
+        return 0
+    
+    if args.algorithm:
+        return control_center.run_algorithm(
+            args.algorithm,
+            train=args.train,
+            output_dir=args.output_dir,
+            fast_mode=args.fast_mode,
+            cuda=not args.no_cuda
+        )
+    
+    if args.format:
+        return control_center.format_code(check_only=args.check)
+    
+    if args.type_check:
+        return control_center.run_type_check()
+    
+    if args.health_check:
+        return control_center.run_health_check()
+    
+    if args.setup_hooks:
+        return control_center.setup_git_hooks()
+    
+    if args.pre_commit_check:
+        return control_center.run_pre_commit_check()
+    
+    if args.train_rl:
+        return control_center.run_full_rl_training(
+            output_dir=args.output_dir,
+            fast_mode=args.fast_mode,
+            no_cuda=args.no_cuda
+        )
+    
+    if args.compare_algorithms:
+        if not args.dataset:
+            print("Error: --dataset required for algorithm comparison")
+            return 1
+        return control_center.compare_algorithms(args.dataset)
+    
+    # If no specific command given, show help
+    parser.print_help()
     return 0
 
 
-def _generate_dataset(cfg: DictConfig):
-    """Generate dataset based on configuration."""
-    print(f"\n📦 Generating dataset: {cfg.dataset.name}")
-    
-    # Configure generator
-    generator = POFJSPDataGenerator(random_seed=cfg.random_seed)
-    
-    # Prepare configurations
-    configurations = []
-    for config_item in cfg.dataset.configurations:
-        configuration = {
-            'name': config_item.name,
-            'size_config': config_item.size_config,
-            'precedence_pattern': config_item.precedence_pattern,
-            'time_distribution': config_item.time_distribution,
-            'machine_capability_prob': config_item.machine_capability_prob
-        }
-        configurations.append(configuration)
-    
-    # Generate dataset
-    orig_dir = hydra.utils.get_original_cwd()
-    output_dir = Path(orig_dir) / cfg.dataset.path / cfg.dataset.name
-    
-    instances = generator.generate_dataset(
-        configurations=configurations,
-        instances_per_config=cfg.dataset.instances_per_config,
-        output_dir=str(output_dir)
-    )
-    
-    # Print summary
-    print(f"\n📊 Dataset Generation Summary:")
-    print(f"  Total configurations: {len(configurations)}")
-    print(f"  Total instances: {len(instances)}")
-    print(f"  Output directory: {output_dir}")
-    
-    return instances
-
-
-def _process_single_instance(instance_id, problem, cfg):
-    """
-    Process a single problem instance.
-    
-    Args:
-        instance_id: Identifier for the instance
-        problem: The ProblemInstance object
-        cfg: Configuration object
-        
-    Returns:
-        Dictionary with results for this instance
-    """
-    # Configure algorithm parameters
-    pop_size = cfg.algorithm.pop_size
-    max_iterations = cfg.algorithm.max_iterations
-    crossover_prob = cfg.algorithm.crossover_prob
-    mutation_prob = cfg.algorithm.mutation_prob
-    verbose = cfg.verbose
-    
-    # Determine if we should track convergence
-    track_convergence = cfg.visualization.enabled and cfg.visualization.convergence_plot
-    
-    # Measure execution time
-    start_time = time.time()
-    
-    # Run algorithm
-    solution = iaoa_gns_algorithm(
-        problem=problem,
-        pop_size=pop_size,
-        max_iterations=max_iterations,
-        verbose=verbose
-    )
-    
-    # Calculate execution time
-    execution_time = time.time() - start_time
-    
-    # Analyze job distribution across machines
-    job_machine_count = {}
-    for j in range(problem.num_jobs):
-        job_machine_count[j] = {m: 0 for m in range(problem.num_machines)}
-        
-    if verbose:
-        print("\nJOB DISTRIBUTION ANALYSIS:")
-    
-    # First try to analyze using machine_schedules if available
-    if hasattr(solution, 'machine_schedules') and solution.machine_schedules:
-        # Count operations per job on each machine
-        for machine_idx, schedule in enumerate(solution.machine_schedules):
-            for op_data in schedule:
-                if len(op_data) >= 3:
-                    operation = op_data[2]
-                    if hasattr(operation, 'job_idx'):
-                        job_machine_count[operation.job_idx][machine_idx] += 1
-    # Fall back to using schedule_details if machine_schedules isn't available or is empty
-    elif hasattr(solution, 'schedule_details') and solution.schedule_details:
-        for op, details in solution.schedule_details.items():
-            if hasattr(op, 'job_idx') and 'machine' in details:
-                job_idx = op.job_idx
-                machine_idx = details['machine']
-                job_machine_count[job_idx][machine_idx] += 1
-    
-    # Print distribution if verbose
-    if verbose:
-        for job_idx, machine_counts in job_machine_count.items():
-            if sum(machine_counts.values()) > 0:  # Skip jobs with no operations
-                machines_used = [m for m, count in machine_counts.items() if count > 0]
-                print(f"Job {job_idx}: {sum(machine_counts.values())} operations across {len(machines_used)} machines")
-                for m, count in machine_counts.items():
-                    if count > 0:
-                        print(f"  - Machine {m}: {count} operations")
-    
-    # Count if there are any jobs with all operations on one machine
-    jobs_on_single_machine = 0
-    for job_idx, machine_counts in job_machine_count.items():
-        if sum(machine_counts.values()) > 0:  # Skip jobs with no operations
-            machines_used = [m for m, count in machine_counts.items() if count > 0]
-            if len(machines_used) == 1:
-                jobs_on_single_machine += 1
-    
-    if jobs_on_single_machine > 0 and verbose:
-        print(f"\nWARNING: {jobs_on_single_machine} jobs have all operations on a single machine!")
-    
-    result = {
-        'instance_id': instance_id,
-        'makespan': solution.makespan,
-        'execution_time': execution_time,
-        'pop_size': pop_size,
-        'max_iterations': max_iterations,
-        'crossover_prob': crossover_prob,
-        'mutation_prob': mutation_prob
-    }
-    
-    # Add solution for Gantt charts etc.
-    result['solution'] = solution
-    
-    if verbose:
-        print(f"  Processed {instance_id}: Makespan: {solution.makespan:.2f}, Time: {execution_time:.2f}s")
-    
-    return result
-
-
-def _evaluate_algorithm(cfg: DictConfig):
-    """Evaluate algorithm on specified dataset."""
-    print(f"\n🧪 Evaluating algorithm on dataset: {cfg.dataset.name}")
-    
-    # Initialize data loader
-    orig_dir = hydra.utils.get_original_cwd()
-    data_dir = Path(orig_dir) / cfg.dataset.path
-    loader = POFJSPDataLoader(str(data_dir))
-    
-    # Load instances
-    instances = loader.load_instances_by_criteria(
-        dataset_name=cfg.dataset.name,
-        size_config=cfg.dataset.size_filter,
-        precedence_pattern=cfg.dataset.pattern_filter,
-        complexity_range=cfg.dataset.complexity_range if hasattr(cfg.dataset, 'complexity_range') else None,
-        max_instances=cfg.dataset.max_instances
-    )
-    
-    print(f"Loaded {len(instances)} instances for evaluation")
-    
-    # Check if multiprocessing is enabled
-    use_multiprocessing = cfg.multiprocessing.enabled if hasattr(cfg, 'multiprocessing') else False
-    
-    if use_multiprocessing:
-        try:
-            from joblib import Parallel, delayed
-            n_jobs = cfg.multiprocessing.n_jobs
-            verbose = cfg.multiprocessing.verbose
-            
-            print(f"🔄 Using parallel processing with {n_jobs} workers")
-            
-            # Process instances in parallel
-            results_with_solutions = Parallel(n_jobs=n_jobs, verbose=verbose)(
-                delayed(_process_single_instance)(instance_id, problem, cfg)
-                for instance_id, problem in instances
-            )
-            
-        except ImportError:
-            print("⚠️ joblib not found, falling back to sequential processing")
-            use_multiprocessing = False
-    
-    if not use_multiprocessing:
-        # Sequential processing
-        print("🔄 Using sequential processing")
-        results_with_solutions = []
-        
-        # Process instances sequentially
-        for idx, (instance_id, problem) in enumerate(instances):
-            if cfg.verbose:
-                print(f"\n[{idx+1}/{len(instances)}] Evaluating instance: {instance_id}")
-            else:
-                # Minimal progress indicator
-                print(f"Processing: {idx+1}/{len(instances)}\r", end="")
-            
-            result = _process_single_instance(instance_id, problem, cfg)
-            results_with_solutions.append(result)
-            
-        if not cfg.verbose:
-            print()  # Add newline after progress indicators
-    
-    # Gather convergence histories if needed
-    convergence_histories = []
-    
-    # Extract solutions for visualization
-    results = []
-    for result in results_with_solutions:
-        # Extract solution for convergence history if needed
-        if cfg.visualization.enabled and cfg.visualization.convergence_plot:
-            solution = result.pop('solution')  # Remove solution from result dict
-            if hasattr(solution, 'convergence_history'):
-                convergence_histories.append(solution.convergence_history)
-        else:
-            result.pop('solution', None)  # Remove solution if not needed
-            
-        results.append(result)
-    
-    # Convert to DataFrame
-    results_df = pd.DataFrame(results)
-    
-    # Save results
-    results_file = f"results_{cfg.dataset.name}.csv"
-    results_df.to_csv(results_file, index=False)
-    
-    # Print summary
-    print(f"\n📊 Evaluation Summary:")
-    print(f"  Average makespan: {results_df['makespan'].mean():.2f}")
-    print(f"  Average execution time: {results_df['execution_time'].mean():.2f}s")
-    print(f"  Results saved to: {results_file}")
-    
-    # Plot convergence if requested and data available
-    if cfg.visualization.enabled and cfg.visualization.convergence_plot and convergence_histories:
-        from src.visualization.analysis import plot_convergence_history
-        plot_convergence_history(
-            convergence_data=convergence_histories,
-            title=f"Algorithm Convergence on {cfg.dataset.name}",
-            output_dir=f"figures/analysis/convergence/{cfg.dataset.name}",
-            file_formats=cfg.visualization.save_formats
-        )
-    
-    return results
-
-
-def _reproduce_results(cfg: DictConfig):
-    """Reproduce the original paper results."""
-    print(f"\n🔍 Reproducing results from the paper")
-    
-    # Load specific benchmark instances
-    orig_dir = hydra.utils.get_original_cwd()
-    data_dir = Path(orig_dir) / cfg.dataset.path
-    loader = POFJSPDataLoader(str(data_dir))
-    
-    # Load specific instances for reproduction
-    instances = []
-    for instance_spec in cfg.reproduction.instances:
-        dataset_name = instance_spec.dataset
-        instance_id = instance_spec.id
-        
-        try:
-            problems_df = loader.load_problems_dataframe(dataset_name)
-            problem = loader.load_instance_from_dataframe(problems_df, instance_id)
-            instances.append((instance_id, problem))
-            print(f"Loaded instance {instance_id} from {dataset_name}")
-        except Exception as e:
-            print(f"Failed to load instance {instance_id}: {e}")
-    
-    # Run algorithm with original settings
-    results = []
-    
-    for idx, (instance_id, problem) in enumerate(instances):
-        if verbose:
-            print(f"\nReproducing results for instance: {instance_id}")
-        else:
-            print(f"Processing reproduction: {idx+1}/{len(instances)}\r", end="")
-        
-        # Use original algorithm settings
-        pop_size = cfg.reproduction.algorithm.pop_size
-        max_iterations = cfg.reproduction.algorithm.max_iterations
-        crossover_prob = cfg.reproduction.algorithm.crossover_prob
-        mutation_prob = cfg.reproduction.algorithm.mutation_prob
-        verbose = cfg.verbose
-        
-        # Run algorithm
-        solution = iaoa_gns_algorithm(
-            problem=problem,
-            pop_size=pop_size,
-            max_iterations=max_iterations,
-            verbose=verbose
-        )
-        
-        # Record results
-        result = {
-            'instance_id': instance_id,
-            'makespan': solution.makespan
-        }
-        
-        # Compare with reported results if available
-        for reported in cfg.reproduction.reported_results:
-            if reported.instance_id == instance_id:
-                result['reported_makespan'] = reported.makespan
-                result['difference'] = (solution.makespan - reported.makespan) / reported.makespan * 100
-                break
-        
-        results.append(result)
-        
-        if verbose:
-            if 'reported_makespan' in result:
-                print(f"  Our makespan: {solution.makespan:.2f}")
-                print(f"  Reported makespan: {result['reported_makespan']:.2f}")
-                print(f"  Difference: {result['difference']:.2f}%")
-            else:
-                print(f"  Makespan: {solution.makespan:.2f}")
-    
-    if not verbose:
-        print()  # Add newline after progress indicators
-    
-    # Save reproduction results
-    results_df = pd.DataFrame(results)
-    results_file = "reproduction_results.csv"
-    results_df.to_csv(results_file, index=False)
-    
-    print(f"\n📊 Reproduction Summary:")
-    if 'difference' in results_df.columns:
-        print(f"  Average difference: {results_df['difference'].mean():.2f}%")
-    print(f"  Results saved to: {results_file}")
-    
-    return results
-
-
-def _run_rl_mode(cfg: DictConfig):
-    """
-    Train and evaluate a PPO agent on POFJSP instances.
-    
-    Args:
-        cfg: Configuration object
-        
-    Returns:
-        Dictionary with results
-    """
-    print(f"\n🤖 Running RL mode with PPO agent")
-    
-    # Load dataset
-    orig_dir = hydra.utils.get_original_cwd()
-    dataset_loader = POFJSPDataLoader(str(Path(orig_dir) / cfg.dataset.path))
-    
-    # Get the dataset name
-    dataset_name = cfg.dataset.name
-    
-    # Load instances based on filters
-    size_filter = cfg.dataset.size_filter
-    pattern_filter = cfg.dataset.pattern_filter
-    max_instances = cfg.dataset.max_instances
-    
-    # Load the instances
-    problem_instances_list = dataset_loader.load_instances_by_criteria(
-        dataset_name=dataset_name,
-        size_config=size_filter,
-        precedence_pattern=pattern_filter,
-        max_instances=max_instances
-    )
-    
-    # Convert to dictionary format for consistency
-    problem_instances = {instance_id: problem for instance_id, problem in problem_instances_list}
-    
-    if not problem_instances:
-        print("No problem instances found! Check dataset configuration.")
-        return {}
-    
-    print(f"Loaded {len(problem_instances)} problem instances.")
-    
-    # Prepare results container
-    results = []
-    
-    # Get agent configuration
-    agent_cfg = cfg.rl.agent
-    training_cfg = cfg.rl.training
-    verbose = cfg.verbose
-    
-    # Import tqdm for progress tracking
-    from tqdm.auto import tqdm
-    
-    # Process each problem instance with progress bar
-    if verbose:
-        instance_iterator = [(instance_id, problem) for instance_id, problem in problem_instances.items()]
-    else:
-        instance_iterator = tqdm(
-            [(instance_id, problem) for instance_id, problem in problem_instances.items()],
-            desc="Processing RL instances"
-        )
-        
-    for instance_id, problem in instance_iterator:
-        if verbose:
-            print(f"\nProcessing instance: {instance_id}")
-        
-        # Train PPO agent for this instance
-        agent_save_path = None
-        if training_cfg.save_models:
-            # Create directory if it doesn't exist
-            save_dir = Path(hydra.utils.get_original_cwd()) / training_cfg.models_dir
-            save_dir.mkdir(parents=True, exist_ok=True)
-            agent_save_path = str(save_dir / f"{instance_id}_model.zip")
-            
-        # Measure training time
-        start_time = time.time()
-        
-        # Train the agent
-        agent, solution = train_ppo_agent(
-            problem_instance=problem,
-            total_timesteps=training_cfg.total_timesteps,
-            n_envs=training_cfg.n_envs,
-            save_path=agent_save_path,
-            verbose=verbose
-        )
-        
-        # Calculate execution time
-        execution_time = time.time() - start_time
-        
-        # Prepare result
-        result = {
-            'instance_id': instance_id,
-            'makespan': solution.makespan,
-            'execution_time': execution_time,
-            'algorithm': 'PPO',
-            'solution': solution
-        }
-        
-        # Add job distribution analysis to the results
-        job_machine_count = {}
-        for j in range(problem.num_jobs):
-            job_machine_count[j] = {m: 0 for m in range(problem.num_machines)}
-        
-        # Count operations per job on each machine
-        for op, details in solution.schedule_details.items():
-            if hasattr(op, 'job_idx') and 'machine' in details:
-                job_idx = op.job_idx
-                machine_idx = details['machine']
-                job_machine_count[job_idx][machine_idx] += 1
-        
-        # Add to result
-        result['job_distribution'] = job_machine_count
-        
-        # Print job distribution if verbose
-        if verbose:
-            print("\nJOB DISTRIBUTION ANALYSIS:")
-            for job_idx, machine_counts in job_machine_count.items():
-                if sum(machine_counts.values()) > 0:  # Skip jobs with no operations
-                    machines_used = [m for m, count in machine_counts.items() if count > 0]
-                    print(f"Job {job_idx}: {sum(machine_counts.values())} operations across {len(machines_used)} machines")
-                    for m, count in machine_counts.items():
-                        if count > 0:
-                            print(f"  - Machine {m}: {count} operations")
-        
-        # Add result to results list
-        results.append(result)
-        
-        # Visualize solution if requested
-        if cfg.rl.visualization.enabled:
-            output_dir = Path(hydra.utils.get_original_cwd()) / cfg.rl.visualization.save_dir
-            output_dir.mkdir(parents=True, exist_ok=True)
-            
-            # Create Gantt chart
-            visualize_solution(
-                solution=solution,
-                problem_instance=problem,
-                instance_id=instance_id,
-                save_dir=str(output_dir),
-                title=f"PPO Agent Solution for {instance_id}",
-                save_convergence=False
-            )
-    
-    if not verbose:
-        print()  # Add newline after progress indicators
-    
-    return {
-        'results': results,
-        'rl_mode': True
-    }
-
-
 if __name__ == "__main__":
-    main() 
+    sys.exit(main())

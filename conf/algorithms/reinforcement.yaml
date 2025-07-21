@@ -1,0 +1,35 @@
+# Reinforcement Learning Configuration
+
+algorithm:
+  name: "PPO+GNN"
+  type: "reinforcement_learning"
+
+network:
+  architecture: "graph_cnn"
+  hidden_dim: 128
+  num_layers: 3
+  activation: "relu"
+  dropout: 0.1
+
+training:
+  total_timesteps: 100000
+  batch_size: 64
+  learning_rate: 3e-4
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  
+environment:
+  reward_shaping: true
+  normalization: true
+  action_masking: true
+  
+optimization:
+  optimizer: "adam"
+  lr_scheduler: "cosine"
+  gradient_clip: 0.5
+  
+output:
+  save_frequency: 1000
+  eval_frequency: 5000
+  log_frequency: 100 

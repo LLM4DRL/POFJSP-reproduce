@@ -1,0 +1,26 @@
+# IAOA+GNS Algorithm Configuration
+
+algorithm:
+  name: "IAOA+GNS"
+  type: "metaheuristic"
+  
+parameters:
+  population_size: 80
+  max_iterations: 60
+  elite_size: 8
+  tournament_size: 5
+  
+neighborhood_search:
+  max_neighbors: 10
+  local_search_iterations: 20
+  improvement_threshold: 0.01
+  
+optimization:
+  convergence_patience: 10
+  diversity_threshold: 0.1
+  intensification_frequency: 5
+  
+output:
+  save_intermediate: true
+  plot_convergence: true
+  detailed_logging: false 

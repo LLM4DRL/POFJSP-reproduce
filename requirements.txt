@@ -23,8 +23,10 @@ scipy>=1.7.0
 
 # Development tools (optional)
 black>=21.0.0
+ruff>=0.1.6
 flake8>=3.8.0
 mypy>=0.800
+pre-commit>=3.0.0
 
 # Added from the code block
 networkx>=2.6.0
@@ -34,4 +36,7 @@ joblib>=1.1.0
 # Reinforcement Learning
 stable-baselines3>=1.6.0
 gym>=0.21.0
-torch>=1.11.0
+gymnasium>=0.28.0
+torch>=1.12.0
+torch-geometric>=2.1.0
+tensorboard>=2.8.0
