@@ -161,7 +161,7 @@ class GraphCNN(nn.Module):
                 
                 op_idx += 1
         
-        x = torch.FloatTensor(node_features)
+        x = torch.tensor(node_features, dtype=torch.float32)
         
         # Create edge indices for precedence constraints
         edge_indices = []
@@ -179,9 +179,15 @@ class GraphCNN(nn.Module):
         
         # Convert to tensor
         if edge_indices:
-            edge_index = torch.LongTensor(edge_indices).t().contiguous()
+            edge_index = torch.tensor(edge_indices, dtype=torch.long).t().contiguous()
         else:
-            edge_index = torch.empty((2, 0), dtype=torch.long)
+            # Create self-loops as fallback when no edges exist
+            num_nodes = len(node_features)
+            if num_nodes > 0:
+                self_loops = torch.arange(num_nodes, dtype=torch.long).repeat(2, 1)
+                edge_index = self_loops
+            else:
+                edge_index = torch.empty((2, 0), dtype=torch.long)
         
         return x, edge_index
     

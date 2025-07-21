@@ -152,8 +152,11 @@ class POFJSPEnv(gym.Env):
                 op = (job_idx, op_idx)
                 if op not in self.scheduled_operations and self._is_operation_ready(op):
                     proc_times = self.problem.processing_times[job_idx][op_idx, :]
-                    valid_machines = ~np.isinf(proc_times)
-                    processing_times[job_idx, valid_machines] = torch.tensor(proc_times[valid_machines], dtype=torch.float32)
+                    valid_machines_mask = ~np.isinf(proc_times)
+                    if np.any(valid_machines_mask):
+                        processing_times[job_idx, valid_machines_mask] = torch.tensor(
+                            proc_times[valid_machines_mask], dtype=torch.float32
+                        )
                     break
         
         return {
@@ -190,16 +193,23 @@ class POFJSPEnv(gym.Env):
         
         # Get valid job-machine pairs
         for job_idx, op_idx in ready_ops:
+            valid_jobs.append(job_idx)
+            
+        # Get all valid machines for any ready operation
+        all_valid_machines = set()
+        for job_idx, op_idx in ready_ops:
             proc_times = self.problem.processing_times[job_idx][op_idx, :]
             valid_machines_for_op = np.where(~np.isinf(proc_times))[0]
-            
-            # Check machine availability
-            for machine_idx in valid_machines_for_op:
-                if self.machine_ready_times[machine_idx] <= self.current_time:
-                    valid_jobs.append(job_idx)
-                    valid_machines.append(machine_idx)
+            all_valid_machines.update(valid_machines_for_op)
         
-        return list(set(valid_jobs)), list(set(valid_machines))
+        valid_jobs = list(set(valid_jobs))
+        valid_machines = list(all_valid_machines)
+        
+        # Ensure at least one valid machine exists for each valid job
+        if not valid_machines:
+            valid_machines = list(range(self.num_machines))  # Fallback
+        
+        return valid_jobs, valid_machines
     
     def _is_operation_ready(self, op: Tuple[int, int]) -> bool:
         """Check if operation is ready to be scheduled."""
@@ -249,8 +259,26 @@ class POFJSPEnv(gym.Env):
             info = {'invalid_action': True, 'makespan': self._get_makespan()}
             return state, reward, terminated, truncated, info
         
-        # Schedule the operation
+        # Check if the machine can process this operation
         processing_time = self.problem.processing_times[job_idx][op_to_schedule[1], machine_idx]
+        
+        if np.isinf(processing_time) or processing_time <= 0:
+            # Invalid machine assignment
+            reward = -5.0  # Penalty for invalid machine choice
+            terminated = False
+            truncated = self.current_time >= self.time_limit
+            state = self._get_state()
+            info = {
+                'current_time': self.current_time,
+                'scheduled_ops': len(self.scheduled_operations),
+                'total_ops': self.num_operations,
+                'makespan': self._get_makespan(),
+                'action_valid': False,
+                'invalid_machine': True
+            }
+            return state, reward, terminated, truncated, info
+        
+        # Schedule the operation
         start_time = max(self.current_time, self.machine_ready_times[machine_idx], self.job_ready_times[job_idx])
         completion_time = start_time + processing_time
         
@@ -273,6 +301,9 @@ class POFJSPEnv(gym.Env):
         
         # Calculate reward
         reward = self._calculate_reward()
+        
+        # Clip reward to prevent extreme values
+        reward = np.clip(reward, -1000.0, 1000.0)
         
         # Get new state
         state = self._get_state()

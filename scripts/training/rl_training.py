@@ -24,7 +24,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from collections import defaultdict
 import random
+import signal
+import sys
 from torch.utils.tensorboard import SummaryWriter
+try:
+    from torch.profiler import profile, record_function, ProfilerActivity
+except ImportError:
+    # Fallback for older PyTorch versions
+    profile = None
+    record_function = None
+    ProfilerActivity = None
 
 # Add src to path for imports
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
@@ -45,10 +54,10 @@ class TrainingConfig:
     
     # Training parameters
     total_timesteps: int = 1_000_000  # Reduced for faster testing
-    learning_rate: float = 3e-4
-    batch_size: int = 64   # Further reduced for variable graph handling
-    n_steps: int = 1024   # Reduced buffer size
-    n_epochs: int = 4     # Fewer epochs for faster updates
+    learning_rate: float = 1e-4
+    batch_size: int = 512  # Increased for better GPU utilization
+    n_steps: int = 2048    # Increased buffer size
+    n_epochs: int = 8      # More epochs for better learning
     gamma: float = 0.99
     gae_lambda: float = 0.95
     clip_range: float = 0.2
@@ -67,7 +76,7 @@ class TrainingConfig:
     # Output and monitoring
     save_every: int = 50_000
     eval_every: int = 25_000
-    log_every: int = 5_000
+    log_every: int = 50  # Much more frequent logging for debugging
 
 class EnhancedPerformanceMonitor:
     """Enhanced performance monitoring with GPU tracking and TensorBoard integration"""
@@ -85,7 +94,7 @@ class EnhancedPerformanceMonitor:
         
         # Setup logging
         logging.basicConfig(
-            level=logging.INFO,
+            level=logging.INFO,   # Reduce logging for performance
             format='%(asctime)s - %(levelname)s - %(message)s',
             handlers=[
                 logging.FileHandler(self.log_dir / 'training.log'),
@@ -203,17 +212,41 @@ class EnhancedPerformanceMonitor:
         self.writer.flush()
     
     def log_gpu_usage(self):
-        """Log GPU memory usage and clear cache if needed"""
+        """Enhanced GPU memory usage and performance monitoring"""
         if torch.cuda.is_available():
             memory_allocated = torch.cuda.memory_allocated() / 1024**3
+            memory_reserved = torch.cuda.memory_reserved() / 1024**3
+            memory_cached = torch.cuda.memory_cached() / 1024**3 if hasattr(torch.cuda, 'memory_cached') else 0
             
-            # Log to TensorBoard
-            self.writer.add_scalar('Performance/GPU_Memory_Current_GB', memory_allocated, self.episode_count)
+            # GPU utilization (if nvidia-ml-py is available)
+            gpu_utilization = self.get_gpu_utilization()
+            
+            # Log detailed GPU metrics to TensorBoard
+            self.writer.add_scalar('Performance/GPU_Memory_Allocated_GB', memory_allocated, self.episode_count)
+            self.writer.add_scalar('Performance/GPU_Memory_Reserved_GB', memory_reserved, self.episode_count)
+            self.writer.add_scalar('Performance/GPU_Memory_Cached_GB', memory_cached, self.episode_count)
+            if gpu_utilization is not None:
+                self.writer.add_scalar('Performance/GPU_Utilization_Percent', gpu_utilization, self.episode_count)
+            
+            # Log to console with more details
+            utilization_str = f", Util: {gpu_utilization:.0f}%" if gpu_utilization is not None else ""
+            self.logger.info(f"GPU Memory - Allocated: {memory_allocated:.2f}GB, Reserved: {memory_reserved:.2f}GB{utilization_str}")
             
             # Clear cache if memory usage is high
-            if memory_allocated > 10.0:  # More than 10GB
+            if memory_allocated > 6.0:  # More than 6GB
                 torch.cuda.empty_cache()
                 self.logger.info(f"GPU cache cleared (was {memory_allocated:.2f}GB)")
+    
+    def get_gpu_utilization(self):
+        """Get GPU utilization percentage if possible"""
+        try:
+            import pynvml
+            pynvml.nvmlInit()
+            handle = pynvml.nvmlDeviceGetHandleByIndex(0)  # First GPU
+            utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
+            return utilization.gpu
+        except (ImportError, Exception):
+            return None
     
     def close(self):
         """Close TensorBoard writer"""
@@ -548,7 +581,10 @@ def run_training_episode(agent: PPOAgent, env: POFJSPEnv, monitor: EnhancedPerfo
     obs, _ = env.reset()
     done = False
     
-    while not done and episode_steps < 100:  # Limit steps per episode
+    # Debug initial state
+    monitor.logger.debug(f"Episode start: obs keys={list(obs.keys()) if isinstance(obs, dict) else type(obs)}, env_time_limit={env.time_limit if hasattr(env, 'time_limit') else 'N/A'}")
+    
+    while not done and episode_steps < 200:  # Increased step limit for better episode completion
         # Get action from agent
         with torch.no_grad():
             # Pad observation to maximum network dimensions
@@ -579,6 +615,10 @@ def run_training_episode(agent: PPOAgent, env: POFJSPEnv, monitor: EnhancedPerfo
                 }
                 
                 combined_action = np.array([experience['job_action'], experience['machine_action']])
+                
+                # Debug actions
+                if episode_steps == 0:  # First step only
+                    monitor.logger.debug(f"Episode {episode_steps}: Action=({experience['job_action']}, {experience['machine_action']}), Masks=({obs_cuda['job_mask'].sum()}, {obs_cuda['machine_mask'].sum()})")
             else:
                 # Just get action for evaluation
                 action_tuple = agent.get_action(
@@ -615,6 +655,10 @@ def run_training_episode(agent: PPOAgent, env: POFJSPEnv, monitor: EnhancedPerfo
         next_obs, reward, terminated, truncated, info = env.step(combined_action)
         done = terminated or truncated
         
+        # Debug early termination
+        if done and episode_steps <= 2:
+            monitor.logger.debug(f"Early termination: step={episode_steps}, terminated={terminated}, truncated={truncated}, reward={reward}, info={info}")
+        
         # Complete experience and add to buffer
         if collect_experience:
             experience['reward'] = reward
@@ -641,9 +685,11 @@ def run_training_episode(agent: PPOAgent, env: POFJSPEnv, monitor: EnhancedPerfo
             exp['advantage'] = adv
             agent.buffer.add(exp)
         
-        # Update agent if buffer has enough samples (more frequent updates)
-        if len(agent.buffer) >= 8:  # Update with fewer experiences
+        # Update agent more frequently for debugging
+        if len(agent.buffer) >= 8:  # Lower threshold to see training progress
             training_losses = agent.update()
+            if training_losses:
+                monitor.logger.info(f"Training update: {training_losses}")
     
     return {
         'episode_reward': episode_reward,
@@ -652,7 +698,16 @@ def run_training_episode(agent: PPOAgent, env: POFJSPEnv, monitor: EnhancedPerfo
         'training_losses': training_losses
     }
 
+def signal_handler(signum, frame):
+    """Handle interrupt signals gracefully"""
+    print(f"\nReceived signal {signum}. Shutting down gracefully...")
+    sys.exit(0)
+
 def main():
+    # Setup signal handlers
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    
     parser = argparse.ArgumentParser(description='Comprehensive RL Training for POFJSP')
     parser.add_argument('--output-dir', default='outputs/comprehensive_training', help='Output directory')
     parser.add_argument('--config-file', help='JSON configuration file')
@@ -663,6 +718,13 @@ def main():
     # Setup device
     device = torch.device('cuda' if torch.cuda.is_available() and not args.no_cuda else 'cpu')
     print(f"Using device: {device}")
+    
+    # GPU info
+    if torch.cuda.is_available():
+        print(f"GPU: {torch.cuda.get_device_name(0)}")
+        print(f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f}GB")
+        # Set memory fraction to use more GPU memory
+        torch.cuda.set_per_process_memory_fraction(0.95)
     
     # Load configuration
     config = TrainingConfig()
@@ -714,6 +776,20 @@ def main():
     monitor.logger.info("Agent initialized successfully")
     monitor.log_gpu_usage()
     
+    # Setup profiling (disabled by default for stability)
+    use_profiler = False  # Disable profiler to avoid warnings and improve performance
+    profiler_ctx = None
+    if use_profiler and profile is not None and torch.cuda.is_available():
+        profiler_ctx = profile(
+            activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
+            schedule=torch.profiler.schedule(wait=100, warmup=50, active=200, repeat=1),
+            on_trace_ready=torch.profiler.tensorboard_trace_handler(str(output_dir / 'profiler')),
+            record_shapes=True,
+            with_stack=True
+        )
+        profiler_ctx.__enter__()
+        monitor.logger.info(f"PyTorch profiler enabled. Results will be saved to: {output_dir / 'profiler'}")
+    
     # Training loop with curriculum learning
     total_timesteps = 0
     best_performance = {'win_rate': 0, 'makespan_improvement': 0, 'stage': ''}
@@ -732,21 +808,36 @@ def main():
             training_instances = generate_curriculum_instances(current_stage, num_instances=10)
             
             # Training on instances
-            for instance in training_instances:
+            for inst_idx, instance in enumerate(training_instances):
                 if total_timesteps >= config.total_timesteps:
                     break
+                
+                monitor.logger.info(f"Processing instance {inst_idx + 1}/{len(training_instances)} (Jobs: {instance.num_jobs}, Machines: {instance.num_machines})")
                 
                 # Create environment for this instance
                 env = POFJSPEnv(instance, time_limit=current_stage['max_episode_steps'])
                 
-                # Run training episodes
-                for episode in range(3):  # Multiple episodes per instance
+                # Run training episodes (reduced for debugging)
+                for episode in range(1):  # Single episode per instance to get to training faster
                     if total_timesteps >= config.total_timesteps:
                         break
                     
-                    episode_results = run_training_episode(agent, env, monitor, config.max_jobs, config.max_machines)
+                    # Profile training episodes
+                    if use_profiler:
+                        with record_function("training_episode"):
+                            episode_results = run_training_episode(agent, env, monitor, config.max_jobs, config.max_machines)
+                    else:
+                        episode_results = run_training_episode(agent, env, monitor, config.max_jobs, config.max_machines)
+                    
                     stage_rewards.append(episode_results['episode_reward'])
                     stage_episodes += 1
+                    
+                    # Step profiler
+                    if use_profiler:
+                        profiler_ctx.step()
+                    
+                    # Immediate logging for each episode (every episode during debugging)
+                    monitor.logger.info(f"Episode {stage_episodes}: Reward={episode_results['episode_reward']:.3f}, Steps={episode_results['episode_steps']}, Makespan={episode_results.get('makespan', 'inf')}")
                     
                     # Log individual episode to TensorBoard
                     monitor.log_episode_metrics(
@@ -882,6 +973,14 @@ def main():
     monitor.writer.add_text('Training/Summary', 
                           f"Training completed!\nBest Win Rate: {best_performance['win_rate']:.3f}\nBest Stage: {best_performance['stage']}\nTotal Time: {time.time() - monitor.start_time:.2f}s",
                           total_timesteps)
+    
+    # Close profiler properly
+    if use_profiler and profiler_ctx is not None:
+        try:
+            profiler_ctx.__exit__(None, None, None)
+            monitor.logger.info("Profiling complete. View with: tensorboard --logdir=outputs/production_run_final/profiler")
+        except Exception as e:
+            monitor.logger.warning(f"Error closing profiler: {e}")
     
     # Close TensorBoard writer
     monitor.close()

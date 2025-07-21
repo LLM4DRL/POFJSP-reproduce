@@ -64,11 +64,11 @@ class PPOAgent:
         num_layers: int = 3,
         num_jobs: int = 10,
         num_machines: int = 10,
-        learning_rate: float = 3e-4,
-        clip_ratio: float = 0.2,
-        value_loss_coef: float = 0.5,
-        entropy_coef: float = 0.01,
-        max_grad_norm: float = 0.5,
+        learning_rate: float = 1e-6,  # Extremely low learning rate
+        clip_ratio: float = 0.05,     # Very tight clipping
+        value_loss_coef: float = 0.001, # Minimal value loss coefficient
+        entropy_coef: float = 0.0001,  # Minimal entropy coefficient
+        max_grad_norm: float = 0.01,   # Extremely tight gradient clipping
         gamma: float = 0.99,
         lam: float = 0.95,
         batch_size: int = 64,
@@ -238,7 +238,7 @@ class PPOAgent:
         Returns:
             Dictionary of training metrics
         """
-        if len(self.buffer) < 8:  # Minimum experiences needed
+        if len(self.buffer) < 8:  # Lower threshold for debugging
             return {}
             
         # Sample batch from buffer
@@ -252,7 +252,7 @@ class PPOAgent:
         num_updates = 0
         
         # Process experiences in mini-batches to improve efficiency
-        mini_batch_size = min(8, len(batch))  # Process 8 experiences at a time
+        mini_batch_size = min(64, len(batch))  # Process 64 experiences at a time for better GPU utilization
         
         for _ in range(self.epochs):
             # Shuffle batch for each epoch
@@ -270,17 +270,38 @@ class PPOAgent:
                 
                 self.optimizer.zero_grad()
                 
+                # Collect advantages for normalization
+                advantages = []
                 for exp in mini_batch:
+                    advantages.append(exp['advantage'])
+                
+                # Normalize advantages
+                advantages = np.array(advantages)
+                if len(advantages) > 1:
+                    adv_mean = np.mean(advantages)
+                    adv_std = np.std(advantages) + 1e-8
+                    advantages = (advantages - adv_mean) / adv_std
+                    # Clip normalized advantages
+                    advantages = np.clip(advantages, -10.0, 10.0)
+                
+                for i, exp in enumerate(mini_batch):
                     # Extract experience data
                     state_x, edge_index, batch_idx = exp['state']
-                    job_action = torch.tensor(exp['job_action'], device=self.device).unsqueeze(0)
-                    machine_action = torch.tensor(exp['machine_action'], device=self.device).unsqueeze(0)
-                    old_job_log_prob = torch.tensor(exp['job_log_prob'], device=self.device).unsqueeze(0)
-                    old_machine_log_prob = torch.tensor(exp['machine_log_prob'], device=self.device).unsqueeze(0)
-                    return_val = torch.tensor(exp['return'], device=self.device).unsqueeze(0)
-                    advantage = torch.tensor(exp['advantage'], device=self.device).unsqueeze(0)
+                    job_action = torch.tensor(exp['job_action'], dtype=torch.long, device=self.device).unsqueeze(0)
+                    machine_action = torch.tensor(exp['machine_action'], dtype=torch.long, device=self.device).unsqueeze(0)
+                    old_job_log_prob = torch.tensor(exp['job_log_prob'], dtype=torch.float32, device=self.device).unsqueeze(0)
+                    old_machine_log_prob = torch.tensor(exp['machine_log_prob'], dtype=torch.float32, device=self.device).unsqueeze(0)
+                    return_val = torch.tensor(exp['return'], dtype=torch.float32, device=self.device).unsqueeze(0)
+                    advantage = torch.tensor(advantages[i] if len(advantages) > 1 else exp['advantage'], dtype=torch.float32, device=self.device).unsqueeze(0)
                     job_mask = exp['job_mask'].unsqueeze(0)
                     machine_mask = exp['machine_mask'].unsqueeze(0)
+                    
+                    # Ensure tensors are float32
+                    state_x = state_x.float().to(self.device)
+                    edge_index = edge_index.long().to(self.device)
+                    batch_idx = batch_idx.long().to(self.device)
+                    job_mask = job_mask.bool().to(self.device)
+                    machine_mask = machine_mask.bool().to(self.device)
                     
                     # Get current predictions for this single experience
                     new_job_logits, new_machine_logits = self.actor(
@@ -304,8 +325,10 @@ class PPOAgent:
                     machine_surr2 = torch.clamp(machine_ratio, 1 - self.clip_ratio, 1 + self.clip_ratio) * advantage
                     machine_policy_loss = -torch.min(machine_surr1, machine_surr2).mean()
                     
-                    # Value loss
-                    value_loss = F.mse_loss(new_value, return_val)
+                    # Value loss with clipped targets
+                    return_val_clipped = torch.clamp(return_val, -100.0, 100.0)
+                    new_value_clipped = torch.clamp(new_value, -100.0, 100.0)
+                    value_loss = F.mse_loss(new_value_clipped, return_val_clipped)
                     
                     # Entropy loss
                     job_entropy = -(new_job_probs * torch.log(new_job_probs + 1e-8)).sum(-1).mean()
@@ -316,6 +339,11 @@ class PPOAgent:
                     loss = (job_policy_loss + machine_policy_loss + \
                            self.value_loss_coef * value_loss + \
                            self.entropy_coef * entropy_loss) / len(mini_batch)  # Scale by mini-batch size
+                    
+                    # Check for NaN or infinite loss
+                    if torch.isnan(loss) or torch.isinf(loss):
+                        print(f"Warning: Invalid loss detected: {loss.item()}")
+                        continue
                     
                     # Accumulate gradients
                     loss.backward()
