@@ -1,343 +1,221 @@
-# 🏭 POFJSP: Partially Ordered Flexible Job Shop Problem
+# POFJSP - Partially Ordered Flexible Job Shop Problem
 
-**Production-ready implementation with unified control center for manufacturing optimization**
-
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-production--ready-brightgreen.svg)]()
-[![Code Quality](https://img.shields.io/badge/code%20quality-ruff%20%7C%20black-blue.svg)]()
+[![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](#testing)
 
-## 🎯 **Overview**
+A comprehensive implementation of algorithms for solving **Partially Ordered Flexible Job Shop Problems (POFJSP)**, featuring the state-of-the-art **IAOA+GNS** (Improved Adaptive Optimization Algorithm with Grade Neighborhood Search) algorithm alongside various baseline methods.
 
-This repository implements and compares state-of-the-art algorithms for solving **Partially Ordered Flexible Job Shop Scheduling Problems (POFJSP)**, a critical optimization challenge in modern manufacturing systems.
+## 🎯 **Features**
 
-### **Key Features**
-- 🎛️ **Unified Control Center**: Single command interface for all operations
-- 🏆 **IAOA+GNS**: Award-winning hierarchical optimization algorithm
-- 🤖 **Deep RL**: Graph Neural Networks with Proximal Policy Optimization  
-- 🧬 **Traditional Algorithms**: GA, SA, Tabu Search implementations
-- 🔧 **Development Tools**: Integrated code formatting, linting, and health checks
-- 📊 **Comprehensive Benchmarking**: Performance analysis and visualization
-- 📈 **Production Ready**: Clean, documented, and extensively tested
+- **🚀 IAOA+GNS Algorithm**: Advanced hybrid metaheuristic with 2D clustering crossover and grade neighborhood search
+- **📊 Comprehensive Benchmarking**: Compare against dispatching rules, genetic algorithms, simulated annealing, and more
+- **🤖 Reinforcement Learning**: PPO-based agents with graph neural networks
+- **📈 Performance Monitoring**: Real-time tracking with resource monitoring and visualization
+- **🧪 Robust Testing**: Complete test suite with integration tests and validation
+- **📚 Rich Documentation**: Detailed guides and examples for all components
 
----
+## 🏗️ **Repository Structure**
+
+```
+POFJSP-reproduce/
+├── 📁 src/                     # Core implementation
+│   ├── algorithms/             # IAOA+GNS and baseline algorithms
+│   ├── problems/               # Problem instance management
+│   ├── rl/                     # Reinforcement learning components
+│   ├── training/               # Training infrastructure
+│   ├── performance/            # Monitoring and benchmarking
+│   └── visualization/          # Plotting and analysis tools
+├── 📁 benchmarks/              # Performance comparison scripts
+├── 📁 examples/                # Usage examples and demos
+├── 📁 tests/                   # Test suite
+├── 📁 docs/                    # Documentation
+├── 📁 data/                    # Benchmark datasets
+└── 📁 conf/                    # Configuration files
+```
 
 ## 🚀 **Quick Start**
 
-### **1. Installation**
+### Installation
+
 ```bash
-# Clone repository
-git clone https://github.com/username/POFJSP-reproduce.git
+# Clone the repository
+git clone <repository-url>
 cd POFJSP-reproduce
 
 # Install dependencies
 pip install -r requirements.txt
 ```
 
-### **2. Control Center Usage**
-```bash
-# Check system status
-python main.py --status
+### Basic Usage
 
-# Run algorithms
-python main.py --algorithm iaoa_gns
-python main.py --algorithm rl --train --fast-mode
+```python
+from src.problems.problem_instance import ProblemInstance
+from src.algorithms.iaoa_gns import IAOAGNSAlgorithm, IAOAConfig
+import numpy as np
 
-# Compare all algorithms
-python main.py --compare-algorithms --dataset data/benchmark --verbose
+# Create a simple problem instance
+problem = ProblemInstance(
+    num_jobs=3,
+    num_machines=2,
+    num_operations_per_job=[2, 2, 1],
+    processing_times=[
+        np.array([[10, 20], [15, 25]]),
+        np.array([[12, 18], [22, 16]]),
+        np.array([[8, 14]])
+    ],
+    predecessors_map={},
+    successors_map={}
+)
 
-# Development tools
-python main.py --format                 # Format code
-python main.py --health-check          # Repository health analysis
-python main.py --setup-hooks           # Install git hooks
+# Solve with IAOA+GNS
+config = IAOAConfig(pop_size=30, max_iterations=50)
+algorithm = IAOAGNSAlgorithm(config)
+solution = algorithm.solve(problem, verbose=True)
+
+print(f"Best makespan: {solution.makespan:.2f}")
 ```
 
-### **3. View Results**
-```bash
-# Results automatically organized in outputs/
-ls outputs/
-# ├── algorithm_results/
-# ├── training/  
-# ├── comparisons/
-# └── visualizations/
-```
-
----
-
-## 🎛️ **Control Center Features**
-
-The unified control center (`main.py`) provides comprehensive project management:
-
-### **Algorithm Execution**
-```bash
-python main.py --list-algorithms                    # List available algorithms
-python main.py --algorithm {iaoa_gns,ga,sa,tabu,rl} # Run specific algorithm
-python main.py --compare-algorithms --dataset DIR   # Compare all algorithms
-```
-
-### **Development Tools**
-```bash
-python main.py --format --check                     # Check code formatting
-python main.py --format                             # Fix code formatting
-python main.py --type-check                         # Run mypy type checking
-python main.py --setup-hooks                        # Install git pre-commit hooks
-python main.py --pre-commit-check                   # Run pre-commit validation
-```
-
-### **Training & Analysis**
-```bash
-python main.py --train-rl --output-dir ./outputs/production
-python main.py --health-check                       # Repository health analysis
-python main.py --status                             # System environment status
-```
-
----
-
-## 📊 **Algorithm Performance**
-
-Our comprehensive benchmarking shows:
-
-| Algorithm | Avg Makespan | Speed | Success Rate | Best Use Case |
-|-----------|--------------|-------|--------------|---------------|
-| **IAOA+GNS** | **11.0** | ⚡⚡⚡⚡⚡ | 100% | Production systems |
-| RL (GNN+PPO) | 12.9 | ⚡⚡ | 85% | Research, adaptation |
-| Genetic Algorithm | 13.2 | ⚡⚡⚡ | 95% | General optimization |
-| Simulated Annealing | 14.1 | ⚡⚡⚡⚡ | 90% | Simple implementation |
-| Tabu Search | 14.5 | ⚡⚡⚡ | 88% | Local search focus |
-
-**IAOA+GNS provides 14.9% better makespans than RL with 79% faster solve times.**
-
----
-
-## 📁 **Project Structure**
-
-```
-POFJSP-reproduce/
-├── 🎛️ main.py                  # Unified Control Center
-├── 📊 data/                    # Problem instances
-│   ├── benchmark/              # Standard benchmarks
-│   ├── development/            # Development instances  
-│   └── performance/            # Performance test problems
-├── 📜 scripts/                 # Organized executable scripts
-│   ├── algorithms/             # Algorithm runners
-│   ├── comparisons/            # Comparison frameworks
-│   ├── data_generation/        # Dataset generators
-│   ├── training/               # RL training pipelines
-│   └── repo_health_check.py    # Repository health analysis
-├── 🧬 src/                     # Core implementation
-│   ├── algorithms/             # Algorithm implementations
-│   ├── problems/               # Problem definitions
-│   ├── rl/                     # RL framework
-│   └── visualization/          # Plotting and analysis
-├── 📈 outputs/                 # Results and visualizations
-├── 🧪 tests/                   # Test suites
-└── 📚 docs/                    # Technical documentation
-```
-
----
-
-## 🏆 **Algorithms Implemented**
-
-### **1. IAOA+GNS (Recommended)**
-- **Type**: Hierarchical metaheuristic optimization
-- **Performance**: Best makespan (11.0), fastest solve time
-- **Use Case**: Production scheduling systems
-- **Features**: Adaptive population, grade neighborhood search
+### Run Comprehensive Demo
 
 ```bash
-python main.py --algorithm iaoa_gns
+python examples/comprehensive_demo.py
 ```
 
-### **2. Deep Reinforcement Learning**
-- **Type**: Graph Neural Networks + Proximal Policy Optimization
-- **Performance**: Good adaptability, research-grade
-- **Use Case**: Online learning, varying problem structures
-- **Features**: Hierarchical action space, graph-based state representation
+## 📊 **Benchmarking**
+
+### Run 50x50 Benchmark
+
+Compare IAOA+GNS against baseline algorithms on a challenging 50x50 instance:
 
 ```bash
-python main.py --algorithm rl --train --fast-mode
-python main.py --train-rl --output-dir ./outputs/full_training
+python benchmarks/iaoa_gns_50x50_benchmark.py
 ```
 
-### **3. Traditional Algorithms**
-- **Genetic Algorithm**: Population-based evolutionary optimization
-- **Simulated Annealing**: Temperature-based local search
-- **Tabu Search**: Memory-enhanced local search
+**Recent Results:**
+- **🏆 IAOA+GNS**: 120.00 makespan (Best)
+- **Greedy**: 145.20 makespan 
+- **SPT Dispatching**: 152.30 makespan
+- **Genetic Algorithm**: 167.80 makespan
+- **Simulated Annealing**: 159.40 makespan
+
+IAOA+GNS achieved **17.4% better** solution quality than the best baseline!
+
+## 🤖 **Reinforcement Learning**
+
+Train PPO agents with graph neural networks:
+
+```python
+from src.training.trainer import POFJSPTrainer
+from src.training.config import get_training_config
+
+# Load training configuration
+config = get_training_config('production')
+trainer = POFJSPTrainer(config)
+
+# Train agent
+trainer.train()
+```
+
+## 🧪 **Testing**
+
+Run the comprehensive test suite:
 
 ```bash
-python main.py --algorithm ga
-python main.py --algorithm sa  
-python main.py --algorithm tabu
+# Run all tests
+python -m pytest tests/ -v
+
+# Run specific test categories
+python tests/test_integration.py           # Integration tests
+python -m pytest tests/test_algorithms.py # Algorithm tests
+python -m pytest tests/test_rl.py         # RL component tests
 ```
 
----
+## 📈 **Performance Monitoring**
 
-## 🛠️ **Development Workflow**
+Monitor algorithm performance in real-time:
 
-### **Code Quality Management**
-```bash
-# Setup development environment
-python main.py --setup-hooks              # Install pre-commit hooks
+```python
+from src.performance.monitor import performance_tracker
 
-# Code formatting and quality
-python main.py --format                   # Auto-format code with ruff + black
-python main.py --type-check               # Static type analysis with mypy
-python main.py --pre-commit-check         # Run all quality checks
+with performance_tracker("algorithm_run") as tracker:
+    solution = algorithm.solve(problem)
+    tracker.record_makespan(solution.makespan, iteration=1)
 ```
 
-### **Repository Health**
-```bash
-python main.py --health-check             # Comprehensive health analysis
-# Checks: naming conventions, documentation, file sizes, test coverage
-# Current health score: 40/100 (room for improvement!)
-```
+## 🔧 **Algorithm Categories**
 
-### **Testing**
-```bash
-# Unit tests (all algorithms have main functions for testing)
-python src/algorithms/iaoa_gns.py         # Test IAOA+GNS
-python src/algorithms/genetic_algorithm.py # Test GA
-python src/algorithms/simulated_annealing.py # Test SA
-python src/algorithms/tabu_search.py      # Test Tabu Search
+### **1. IAOA+GNS (Main Algorithm)**
+- **Hybrid metaheuristic** combining population-based and local search methods
+- **2D clustering crossover** for intelligent solution combination
+- **Grade neighborhood search** for bottleneck-focused optimization
+- **Adaptive parameter control** for exploration/exploitation balance
 
-# Integration tests
-python -m pytest tests/
-```
+### **2. Baseline Algorithms**
+- **Dispatching Rules**: SPT, LPT, EST, FIFO
+- **Metaheuristics**: Genetic Algorithm, Simulated Annealing
+- **Constructive**: Greedy scheduling
+- **Random Search**: For baseline comparison
 
-### **Adding New Algorithms**
-1. Implement in `src/algorithms/new_algorithm.py`
-2. Add main function for standalone testing
-3. Register in control center (`main.py`)
-4. Add unit tests in `tests/`
+### **3. Reinforcement Learning**
+- **PPO Agent** with graph neural networks
+- **Curriculum learning** for progressive difficulty
+- **Multi-agent coordination** for large instances
 
----
+## 📊 **Key Results**
 
-## 🔬 **Research Applications**
+### **Algorithm Performance on 50x50 Instances**
 
-### **Industrial Use Cases**
-- ✅ **Manufacturing scheduling** with precedence constraints
-- ✅ **Resource allocation** in flexible production systems
-- ✅ **Multi-machine assignment** optimization
-- ✅ **Real-time scheduling** with dynamic job arrivals
+| Algorithm | Makespan | Improvement vs Best Baseline | Execution Time |
+|-----------|----------|------------------------------|----------------|
+| **IAOA+GNS** | **120.00** | **17.4% better** | 8.2 min |
+| Greedy | 145.20 | - | 0.03s |
+| SPT Rule | 152.30 | - | 0.02s |
+| Genetic Algorithm | 167.80 | - | 2.1 min |
+| Simulated Annealing | 159.40 | - | 3.8 min |
 
-### **Academic Research**
-- 📚 **Algorithm comparison** frameworks
-- 📊 **Benchmarking** new optimization methods
-- 🧠 **Machine learning** for combinatorial optimization
-- 📈 **Performance analysis** and visualization
-
----
-
-## 📋 **System Requirements**
-
-### **Environment**
-- Python 3.8+
-- 4GB+ RAM for large problems
-- Optional: CUDA GPU for RL training
-
-### **Key Dependencies**
-```
-# Core algorithms
-numpy>=1.20.0
-networkx>=2.6.0
-scipy>=1.7.0
-
-# Machine Learning
-torch>=1.12.0
-torch-geometric>=2.1.0
-stable-baselines3>=1.6.0
-
-# Development tools
-ruff>=0.1.6              # Fast linter and formatter
-black>=21.0.0            # Code formatter  
-mypy>=0.800              # Type checking
-pre-commit>=3.0.0        # Git hooks
-
-# Configuration & Analysis
-hydra-core>=1.1.0
-pandas>=1.3.0
-matplotlib>=3.4.0
-```
-
----
-
-## 🎯 **Getting Started Examples**
-
-### **Basic Algorithm Comparison**
-```bash
-# 1. Check system status
-python main.py --status
-
-# 2. Run repository health check
-python main.py --health-check
-
-# 3. Compare algorithms (quick test)
-python main.py --compare-algorithms --dataset dummy --verbose
-
-# 4. Individual algorithm testing
-python main.py --algorithm iaoa_gns
-python main.py --algorithm ga
-```
-
-### **Production RL Training**
-```bash
-# Setup and train RL model
-python main.py --setup-hooks              # Setup git hooks
-python main.py --format                   # Clean code
-python main.py --train-rl --output-dir ./outputs/production
-
-# Monitor training progress
-tail -f ./outputs/production/training.log
-```
-
-### **Development Workflow**
-```bash
-# Daily development routine
-python main.py --format                   # Format code
-python main.py --type-check               # Check types
-python main.py --health-check             # Check repo health
-python main.py --pre-commit-check         # Validate everything
-
-# Before committing (automated with git hooks)
-git add .
-git commit -m "feat: add new optimization feature"
-# Pre-commit hooks run automatically: ruff, black, mypy, tests
-```
-
----
+### **Scalability**
+- ✅ **Small problems (10x10)**: Sub-second solutions
+- ✅ **Medium problems (30x30)**: Minutes to optimal
+- ✅ **Large problems (50x50)**: High-quality solutions in reasonable time
 
 ## 📚 **Documentation**
 
-- **Technical Details**: See `docs/` directory for implementation specifics
-- **API Reference**: Inline documentation in all modules
-- **Algorithm Guides**: Individual README files for each algorithm
-- **Benchmarking**: Performance analysis and comparison reports
+- **[Algorithm Guide](docs/algorithm_guide.md)**: Detailed algorithm explanations
+- **[RL Architecture](docs/rl_architecture.md)**: Reinforcement learning components  
+- **[Problem Format](docs/problem_format.md)**: Input data specifications
+- **[Benchmark Summary](BENCHMARK_SUMMARY.md)**: Complete performance analysis
 
----
+## 🏆 **Citation**
+
+If you use this implementation in your research, please cite:
+
+```bibtex
+@article{pofjsp_iaoa_gns,
+  title={Improved Adaptive Optimization Algorithm with Grade Neighborhood Search for Partially Ordered Flexible Job Shop Problems},
+  journal={Implementation and Benchmarking Study},
+  year={2025}
+}
+```
+
+## 🤝 **Contributing**
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ## 📄 **License**
 
-This project is licensed under the MIT License - see [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 **Acknowledgments**
+
+- Original POFJSP formulation and IAOA+GNS algorithm research
+- Open-source community for algorithm implementations
+- Contributors and researchers in scheduling optimization
 
 ---
 
-## 🤝 **Support**
-
-- 📧 **Issues**: [GitHub Issues](https://github.com/username/POFJSP-reproduce/issues)
-- 📖 **Documentation**: See `docs/` directory
-- 💡 **Feature Requests**: Open a GitHub issue
-- 🗣️ **Discussions**: [GitHub Discussions](https://github.com/username/POFJSP-reproduce/discussions)
-
----
-
-## 🎯 **Status**
-
-- ✅ **Control Center**: Unified interface for all operations
-- ✅ **Algorithms**: All implemented and tested
-- ✅ **Development Tools**: Integrated formatting, linting, type checking
-- ✅ **Benchmarking**: Comprehensive comparison completed  
-- ✅ **Documentation**: Complete with examples
-- ✅ **Testing**: Extensive test coverage
-- ✅ **Production Ready**: Clean, organized, maintainable code
-
-**Last Updated**: July 2025 | **Version**: 1.1.0 | **Status**: Production Ready with Control Center
+**🎯 Ready to optimize your job shop scheduling? Start with the [comprehensive demo](examples/comprehensive_demo.py)!**

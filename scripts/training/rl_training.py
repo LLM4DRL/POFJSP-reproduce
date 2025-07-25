@@ -18,6 +18,16 @@ import argparse
 import logging
 import numpy as np
 import torch
+
+# Import optimized components
+try:
+    from src.rl.utils.tensor_cache import TensorCache, BatchTensorProcessor
+    from src.config import get_config, MainConfig
+    from src.exceptions import RLTrainingError, MemoryError as POFJSPMemoryError
+    OPTIMIZED_IMPORTS_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: Optimized components not available: {e}")
+    OPTIMIZED_IMPORTS_AVAILABLE = False
 import torch.nn as nn
 from typing import Dict, List, Tuple, Optional, Any
 from dataclasses import dataclass

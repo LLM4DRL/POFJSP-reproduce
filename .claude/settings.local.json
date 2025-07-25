@@ -16,7 +16,14 @@
       "Bash(conda activate:*)",
       "Bash(where conda)",
       "Bash(call H:pinokiobinminicondacondabinconda.bat activate quant)",
-      "Bash(H:pinokiobinminicondacondabinconda.bat activate quant)"
+      "Bash(H:pinokiobinminicondacondabinconda.bat activate quant)",
+      "Bash(\"H:\\pinokio\\bin\\miniconda\\Scripts\\pip.exe\" install numpy torch --extra-index-url https://download.pytorch.org/whl/cpu)",
+      "Bash(PYTHONPATH=/Users/simonwsy/workspace/POFJSP-reproduce/src python -m pytest tests/ -v --tb=short)",
+      "Bash(PYTHONPATH=./src python -c \"from src.algorithms.iaoa_gns import IAOAGNSAlgorithm; print(''Import successful'')\")",
+      "Bash(PYTHONPATH=./src python scripts/repo_health_check.py)",
+      "Bash(PYTHONPATH=./src python examples/comprehensive_demo.py)",
+      "Bash(git checkout:*)",
+      "Bash(git add:*)"
     ],
     "deny": []
   }

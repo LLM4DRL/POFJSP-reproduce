@@ -1,0 +1,112 @@
+{
+  "timestamp": "2025-07-26 01:56:22",
+  "problem_info": {
+    "num_jobs": 50,
+    "num_machines": 50,
+    "total_operations": 156,
+    "precedence_constraints": 156
+  },
+  "results": {
+    "IAOA+GNS": {
+      "makespan": 119.0,
+      "execution_time": 557.0880870819092,
+      "additional_metrics": {
+        "algorithm": "IAOA+GNS",
+        "version": "unified",
+        "config": {
+          "pop_size": 30,
+          "max_iterations": 50,
+          "moa_range": [
+            0.2,
+            1.0
+          ]
+        },
+        "components": [
+          "PopulationManager",
+          "CrossoverOperator",
+          "MutationOperator",
+          "NeighborhoodSearch",
+          "BottleneckDetector"
+        ]
+      }
+    },
+    "SPT_Dispatching": {
+      "makespan": 174.0,
+      "execution_time": 0.5188920497894287,
+      "additional_metrics": {}
+    },
+    "LPT_Dispatching": {
+      "makespan": 166.0,
+      "execution_time": 0.48821401596069336,
+      "additional_metrics": {}
+    },
+    "GreedyScheduling": {
+      "makespan": 173.0,
+      "execution_time": 0.502281904220581,
+      "additional_metrics": {}
+    },
+    "GeneticAlgorithm": {
+      "makespan": 388.0,
+      "execution_time": 0.462277889251709,
+      "additional_metrics": {
+        "generations": 30
+      }
+    },
+    "SimulatedAnnealing": {
+      "makespan": 406.0,
+      "execution_time": 0.5799071788787842,
+      "additional_metrics": {
+        "iterations": 136,
+        "final_temp": 0.983301527910579
+      }
+    }
+  },
+  "analysis": {
+    "ranking": [
+      [
+        "IAOA+GNS",
+        119.0,
+        557.0880870819092
+      ],
+      [
+        "LPT_Dispatching",
+        166.0,
+        0.48821401596069336
+      ],
+      [
+        "GreedyScheduling",
+        173.0,
+        0.502281904220581
+      ],
+      [
+        "SPT_Dispatching",
+        174.0,
+        0.5188920497894287
+      ],
+      [
+        "GeneticAlgorithm",
+        388.0,
+        0.462277889251709
+      ],
+      [
+        "SimulatedAnnealing",
+        406.0,
+        0.5799071788787842
+      ]
+    ],
+    "best_algorithm": "IAOA+GNS",
+    "best_makespan": 119.0,
+    "summary_stats": {
+      "algorithms_tested": 6,
+      "successful_runs": 6,
+      "makespan_range": [
+        119.0,
+        406.0
+      ],
+      "execution_time_range": [
+        0.462277889251709,
+        557.0880870819092
+      ]
+    }
+  }
+}
