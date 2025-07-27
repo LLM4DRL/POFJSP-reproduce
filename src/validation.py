@@ -12,7 +12,7 @@ import torch
 from typing import Any, Callable, Dict, List, Optional, Union, Tuple
 import logging
 
-from exceptions import ValidationError, InvalidProblemError
+from src.exceptions import ValidationError, InvalidProblemError
 
 logger = logging.getLogger(__name__)
 

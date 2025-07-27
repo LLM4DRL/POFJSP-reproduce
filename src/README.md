@@ -33,20 +33,20 @@ src/
 ### 1. Algorithm Implementations
 
 #### IAOA+GNS (Improved Adaptive Optimization Algorithm + Grade Neighborhood Search)
-- **Main Interface**: `algorithms/iaoa_gns.py` - Clean, backward-compatible interface
-- **Implementation**: `algorithms/iaoa_gns_refactored.py` - Modular, maintainable implementation  
-- **Components**: `algorithms/iaoa_gns_components.py` - Individual algorithm components
-  - `PopulationManager` - Population initialization and management
-  - `CrossoverOperator` - Two-dimensional clustering crossover
-  - `MutationOperator` - Effective parallel mutation
-  - `NeighborhoodSearch` - Grade neighborhood search operations
-  - `BottleneckDetector` - Bottleneck identification
+- **Main Interface**: `algorithms/iaoa_gns.py` - Clean, comprehensive implementation
+- **Factory Support**: Available through `algorithms/factory.py` with parameter validation
+- **Algorithm Features**:
+  - Population-based optimization with adaptive parameters
+  - Grade neighborhood search for local optimization
+  - Bottleneck detection and resolution
+  - Two-dimensional clustering crossover
+  - Effective parallel mutation strategies
 
 **Key Features**:
-- Refactored from 778-line monolithic function to focused components
 - Comprehensive error handling and validation
 - Memory-efficient operations
-- Backward compatibility maintained
+- Configurable through factory pattern
+- Performance monitoring and contracts
 
 #### Reinforcement Learning (PPO + GNN)
 - **Agent**: `rl/models/ppo_agent.py` - PPO agent with memory optimizations
@@ -98,17 +98,21 @@ src/
 ### Basic Problem Solving
 
 ```python
-from src.algorithms.iaoa_gns import IAOAGNSAlgorithm
+from src.algorithms.factory import AlgorithmFactory
 from src.problems.problem_instance import ProblemInstance
 
 # Create problem instance
 problem = ProblemInstance.from_json("data/problem.json")
 
-# Solve with IAOA+GNS
-algorithm = IAOAGNSAlgorithm(pop_size=80, max_iterations=60)
-solution = algorithm.solve(problem, verbose=True)
+# Solve with IAOA+GNS using factory
+algorithm = AlgorithmFactory.create_algorithm('iaoa_gns', {
+    'pop_size': 80, 'max_iterations': 60
+})
+result = algorithm.solve(problem)
 
-print(f"Best makespan: {solution.makespan}")
+print(f"Best makespan: {result.makespan}")
+print(f"Algorithm: {result.algorithm_name}")
+print(f"Execution time: {result.execution_time:.2f}s")
 ```
 
 ### Reinforcement Learning Training
@@ -202,19 +206,33 @@ print(f"Cache hit ratio: {stats['hit_ratio']:.2%}")
 - Performance regressions not allowed
 - Documentation must be updated
 
-## Migration from Legacy Code
+## Algorithm Usage Patterns
 
-The refactored implementation maintains full backward compatibility:
+The system supports multiple ways to create and use algorithms:
 
 ```python
-# Old usage (still works)
-from src.algorithms.iaoa_gns import IAOAGNSAlgorithm
-algorithm = IAOAGNSAlgorithm(80, 60)
+# Factory pattern (recommended)
+from src.algorithms.factory import AlgorithmFactory, create_algorithm_suite
 
-# New usage (recommended)
-from src.algorithms.iaoa_gns_refactored import IAOAGNSAlgorithm, IAOAConfig
-config = IAOAConfig(pop_size=80, max_iterations=60)
-algorithm = IAOAGNSAlgorithm(config)
+# Create single algorithm
+algorithm = AlgorithmFactory.create_algorithm('genetic', {'pop_size': 50})
+
+# Create algorithm suite for comparison
+suite = create_algorithm_suite()
+results = {}
+for name, algo in suite.items():
+    results[name] = algo.solve(problem, timeout=300)
+
+# Builder pattern
+from src.algorithms.factory import AlgorithmBuilder
+algorithm = (AlgorithmBuilder('pso')
+            .with_parameter('n_particles', 30)
+            .with_parameter('max_iterations', 100)
+            .build())
+
+# Direct instantiation (still supported)
+from src.algorithms.baseline_algorithms import GeneticAlgorithm
+algorithm = GeneticAlgorithm(pop_size=50, generations=100)
 ```
 
 ## Support

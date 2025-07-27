@@ -1,0 +1,360 @@
+[
+  {
+    "algorithm": "genetic",
+    "problem_size": "5x5",
+    "n_jobs": 5,
+    "n_machines": 5,
+    "makespan": 12.0,
+    "execution_time": 0.22398114204406738,
+    "iterations": 50,
+    "convergence": true,
+    "error": null,
+    "run_id": 0,
+    "additional_metrics": {
+      "generations": 50
+    }
+  },
+  {
+    "algorithm": "simulated_annealing",
+    "problem_size": "5x5",
+    "n_jobs": 5,
+    "n_machines": 5,
+    "makespan": 9.0,
+    "execution_time": 0.04834413528442383,
+    "iterations": 181,
+    "convergence": true,
+    "error": null,
+    "run_id": 0,
+    "additional_metrics": {
+      "iterations": 181,
+      "final_temp": 0.09777975663122843
+    }
+  },
+  {
+    "algorithm": "aco",
+    "problem_size": "5x5",
+    "n_jobs": 5,
+    "n_machines": 5,
+    "makespan": Infinity,
+    "execution_time": 0.34380006790161133,
+    "iterations": 0,
+    "convergence": false,
+    "error": null,
+    "run_id": 0,
+    "additional_metrics": null
+  },
+  {
+    "algorithm": "pso",
+    "problem_size": "5x5",
+    "n_jobs": 5,
+    "n_machines": 5,
+    "makespan": Infinity,
+    "execution_time": 0.1289200782775879,
+    "iterations": 0,
+    "convergence": false,
+    "error": null,
+    "run_id": 0,
+    "additional_metrics": null
+  },
+  {
+    "algorithm": "differential_evolution",
+    "problem_size": "5x5",
+    "n_jobs": 5,
+    "n_machines": 5,
+    "makespan": Infinity,
+    "execution_time": 0.14589381217956543,
+    "iterations": 0,
+    "convergence": false,
+    "error": null,
+    "run_id": 0,
+    "additional_metrics": null
+  },
+  {
+    "algorithm": "vns",
+    "problem_size": "5x5",
+    "n_jobs": 5,
+    "n_machines": 5,
+    "makespan": 4.0,
+    "execution_time": 16.588138103485107,
+    "iterations": 0,
+    "convergence": false,
+    "error": null,
+    "run_id": 0,
+    "additional_metrics": null
+  },
+  {
+    "algorithm": "tabu_search",
+    "problem_size": "5x5",
+    "n_jobs": 5,
+    "n_machines": 5,
+    "makespan": 5.0,
+    "execution_time": 2.3807408809661865,
+    "iterations": 0,
+    "convergence": false,
+    "error": null,
+    "run_id": 0,
+    "additional_metrics": null
+  },
+  {
+    "algorithm": "hybrid_ga_ls",
+    "problem_size": "5x5",
+    "n_jobs": 5,
+    "n_machines": 5,
+    "makespan": 7.0,
+    "execution_time": 2.092956781387329,
+    "iterations": 0,
+    "convergence": false,
+    "error": null,
+    "run_id": 0,
+    "additional_metrics": null
+  },
+  {
+    "algorithm": "memory_sa",
+    "problem_size": "5x5",
+    "n_jobs": 5,
+    "n_machines": 5,
+    "makespan": 10.0,
+    "execution_time": 0.051455020904541016,
+    "iterations": 177,
+    "convergence": true,
+    "error": null,
+    "run_id": 0,
+    "additional_metrics": {
+      "iterations": 177,
+      "memory_size": 6
+    }
+  },
+  {
+    "algorithm": "iaoa_gns",
+    "problem_size": "5x5",
+    "n_jobs": 5,
+    "n_machines": 5,
+    "makespan": Infinity,
+    "execution_time": 0.0,
+    "iterations": 0,
+    "convergence": false,
+    "error": "IAOAGNSAlgorithm.solve() got an unexpected keyword argument 'timeout'",
+    "run_id": 0,
+    "additional_metrics": null
+  },
+  {
+    "algorithm": "greedy",
+    "problem_size": "5x5",
+    "n_jobs": 5,
+    "n_machines": 5,
+    "makespan": Infinity,
+    "execution_time": 0.0005788803100585938,
+    "iterations": 0,
+    "convergence": false,
+    "error": null,
+    "run_id": 0,
+    "additional_metrics": null
+  },
+  {
+    "algorithm": "random",
+    "problem_size": "5x5",
+    "n_jobs": 5,
+    "n_machines": 5,
+    "makespan": 13.0,
+    "execution_time": 0.11931705474853516,
+    "iterations": 0,
+    "convergence": true,
+    "error": null,
+    "run_id": 0,
+    "additional_metrics": {
+      "trials": 1000
+    }
+  },
+  {
+    "algorithm": "dispatching_spt",
+    "problem_size": "5x5",
+    "n_jobs": 5,
+    "n_machines": 5,
+    "makespan": Infinity,
+    "execution_time": 0.0006787776947021484,
+    "iterations": 0,
+    "convergence": false,
+    "error": null,
+    "run_id": 0,
+    "additional_metrics": null
+  },
+  {
+    "algorithm": "genetic",
+    "problem_size": "10x10",
+    "n_jobs": 10,
+    "n_machines": 10,
+    "makespan": Infinity,
+    "execution_time": 0.8354098796844482,
+    "iterations": 50,
+    "convergence": false,
+    "error": null,
+    "run_id": 0,
+    "additional_metrics": {
+      "generations": 50
+    }
+  },
+  {
+    "algorithm": "simulated_annealing",
+    "problem_size": "10x10",
+    "n_jobs": 10,
+    "n_machines": 10,
+    "makespan": Infinity,
+    "execution_time": 0.12711763381958008,
+    "iterations": 181,
+    "convergence": false,
+    "error": null,
+    "run_id": 0,
+    "additional_metrics": {
+      "iterations": 181,
+      "final_temp": 0.09777975663122843
+    }
+  },
+  {
+    "algorithm": "aco",
+    "problem_size": "10x10",
+    "n_jobs": 10,
+    "n_machines": 10,
+    "makespan": Infinity,
+    "execution_time": 10.189815998077393,
+    "iterations": 0,
+    "convergence": false,
+    "error": null,
+    "run_id": 0,
+    "additional_metrics": null
+  },
+  {
+    "algorithm": "pso",
+    "problem_size": "10x10",
+    "n_jobs": 10,
+    "n_machines": 10,
+    "makespan": Infinity,
+    "execution_time": 1.2610700130462646,
+    "iterations": 0,
+    "convergence": false,
+    "error": null,
+    "run_id": 0,
+    "additional_metrics": null
+  },
+  {
+    "algorithm": "differential_evolution",
+    "problem_size": "10x10",
+    "n_jobs": 10,
+    "n_machines": 10,
+    "makespan": Infinity,
+    "execution_time": 1.2561759948730469,
+    "iterations": 0,
+    "convergence": false,
+    "error": null,
+    "run_id": 0,
+    "additional_metrics": null
+  },
+  {
+    "algorithm": "vns",
+    "problem_size": "10x10",
+    "n_jobs": 10,
+    "n_machines": 10,
+    "makespan": Infinity,
+    "execution_time": 63.807697057724,
+    "iterations": 0,
+    "convergence": false,
+    "error": null,
+    "run_id": 0,
+    "additional_metrics": null
+  },
+  {
+    "algorithm": "tabu_search",
+    "problem_size": "10x10",
+    "n_jobs": 10,
+    "n_machines": 10,
+    "makespan": Infinity,
+    "execution_time": 1.7739722728729248,
+    "iterations": 0,
+    "convergence": false,
+    "error": null,
+    "run_id": 0,
+    "additional_metrics": null
+  },
+  {
+    "algorithm": "hybrid_ga_ls",
+    "problem_size": "10x10",
+    "n_jobs": 10,
+    "n_machines": 10,
+    "makespan": Infinity,
+    "execution_time": 5.3728461265563965,
+    "iterations": 0,
+    "convergence": false,
+    "error": null,
+    "run_id": 0,
+    "additional_metrics": null
+  },
+  {
+    "algorithm": "memory_sa",
+    "problem_size": "10x10",
+    "n_jobs": 10,
+    "n_machines": 10,
+    "makespan": Infinity,
+    "execution_time": 0.12859201431274414,
+    "iterations": 177,
+    "convergence": false,
+    "error": null,
+    "run_id": 0,
+    "additional_metrics": {
+      "iterations": 177,
+      "memory_size": 1
+    }
+  },
+  {
+    "algorithm": "iaoa_gns",
+    "problem_size": "10x10",
+    "n_jobs": 10,
+    "n_machines": 10,
+    "makespan": Infinity,
+    "execution_time": 0.0,
+    "iterations": 0,
+    "convergence": false,
+    "error": "IAOAGNSAlgorithm.solve() got an unexpected keyword argument 'timeout'",
+    "run_id": 0,
+    "additional_metrics": null
+  },
+  {
+    "algorithm": "greedy",
+    "problem_size": "10x10",
+    "n_jobs": 10,
+    "n_machines": 10,
+    "makespan": Infinity,
+    "execution_time": 0.021731138229370117,
+    "iterations": 0,
+    "convergence": false,
+    "error": null,
+    "run_id": 0,
+    "additional_metrics": null
+  },
+  {
+    "algorithm": "random",
+    "problem_size": "10x10",
+    "n_jobs": 10,
+    "n_machines": 10,
+    "makespan": Infinity,
+    "execution_time": 0.7168521881103516,
+    "iterations": 0,
+    "convergence": false,
+    "error": null,
+    "run_id": 0,
+    "additional_metrics": {
+      "trials": 1000
+    }
+  },
+  {
+    "algorithm": "dispatching_spt",
+    "problem_size": "10x10",
+    "n_jobs": 10,
+    "n_machines": 10,
+    "makespan": Infinity,
+    "execution_time": 0.022426128387451172,
+    "iterations": 0,
+    "convergence": false,
+    "error": null,
+    "run_id": 0,
+    "additional_metrics": null
+  }
+]

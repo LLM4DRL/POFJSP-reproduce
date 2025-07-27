@@ -103,6 +103,14 @@ class ConfigurationError(POFJSPError):
         super().__init__(f"Invalid {parameter}={value}, expected {expected}")
 
 
+class PerformanceError(POFJSPError):
+    """Raised when performance contracts are violated."""
+    
+    def __init__(self, contract_violation: str):
+        self.contract_violation = contract_violation
+        super().__init__(f"Performance contract violation: {contract_violation}")
+
+
 def handle_gpu_memory_error(func):
     """Decorator to handle GPU memory errors gracefully."""
     def wrapper(*args, **kwargs):

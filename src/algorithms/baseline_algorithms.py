@@ -13,9 +13,9 @@ from typing import List, Tuple, Dict, Optional
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 
-from problems.problem_instance import ProblemInstance, Solution, Operation
-from algorithms.decoder import decode_solution
-from exceptions import AlgorithmError, ValidationError
+from src.problems.problem_instance import ProblemInstance, Solution, Operation
+from src.algorithms.decoder import decode_solution
+from src.exceptions import AlgorithmError, ValidationError
 
 
 @dataclass
@@ -510,3 +510,312 @@ class GreedyAlgorithm(BaseSchedulingAlgorithm):
                 execution_time=execution_time,
                 additional_metrics={"error": str(e)}
             )
+
+
+class AntColonyOptimization(BaseSchedulingAlgorithm):
+    """Ant Colony Optimization algorithm for POFJSP."""
+    
+    def __init__(self, n_ants: int = 20, max_iterations: int = 50, 
+                 alpha: float = 1.0, beta: float = 2.0, rho: float = 0.1, q0: float = 0.9):
+        """
+        Initialize ACO algorithm.
+        
+        Args:
+            n_ants: Number of ants
+            max_iterations: Maximum number of iterations
+            alpha: Pheromone importance
+            beta: Heuristic information importance
+            rho: Pheromone evaporation rate
+            q0: Exploitation probability
+        """
+        self.n_ants = n_ants
+        self.max_iterations = max_iterations
+        self.alpha = alpha
+        self.beta = beta
+        self.rho = rho
+        self.q0 = q0
+        
+    @property
+    def algorithm_name(self) -> str:
+        return "ACO"
+    
+    def solve(self, problem: ProblemInstance, timeout: float = 300.0) -> AlgorithmResult:
+        start_time = time.time()
+        
+        try:
+            # Initialize pheromone matrix
+            n_ops = len(problem.all_operations)
+            pheromone = np.ones((n_ops, n_ops)) * 0.1
+            
+            best_solution = None
+            best_makespan = float('inf')
+            
+            for iteration in range(self.max_iterations):
+                if time.time() - start_time > timeout:
+                    break
+                    
+                # Generate solutions with ants
+                ant_solutions = []
+                ant_makespans = []
+                
+                for ant in range(self.n_ants):
+                    solution, makespan = self._construct_solution(problem, pheromone)
+                    ant_solutions.append(solution)
+                    ant_makespans.append(makespan)
+                    
+                    if makespan < best_makespan:
+                        best_makespan = makespan
+                        best_solution = solution
+                
+                # Update pheromones
+                self._update_pheromones(pheromone, ant_solutions, ant_makespans, problem)
+            
+            execution_time = time.time() - start_time
+            
+            return AlgorithmResult(
+                algorithm_name=self.algorithm_name,
+                makespan=best_makespan,
+                execution_time=execution_time,
+                solution=best_solution
+            )
+            
+        except Exception as e:
+            execution_time = time.time() - start_time
+            return AlgorithmResult(
+                algorithm_name=self.algorithm_name,
+                makespan=float('inf'),
+                execution_time=execution_time,
+                additional_metrics={"error": str(e)}
+            )
+    
+    def _construct_solution(self, problem: ProblemInstance, pheromone: np.ndarray) -> Tuple[Solution, float]:
+        """Construct a solution using ant colony construction."""
+        operations = list(problem.all_operations)
+        op_to_idx = {op: i for i, op in enumerate(operations)}
+        
+        available_ops = set(operations)
+        scheduled_ops = []
+        scheduled_set = set()
+        machine_assignment = []
+        
+        while available_ops:
+            # Find schedulable operations
+            schedulable = []
+            for op in available_ops:
+                predecessors = problem.predecessors_map.get(op, set())
+                if predecessors.issubset(scheduled_set):
+                    schedulable.append(op)
+            
+            if not schedulable:
+                break
+            
+            # Select operation using ACO probabilities
+            if len(scheduled_ops) == 0:
+                selected_op = random.choice(schedulable)
+            else:
+                last_op_idx = op_to_idx[scheduled_ops[-1]]
+                probabilities = []
+                
+                for op in schedulable:
+                    op_idx = op_to_idx[op]
+                    # Heuristic: prefer operations with shorter processing time
+                    min_proc_time = min(problem.get_processing_time(op, m) 
+                                      for m in problem.get_valid_machines(op))
+                    heuristic = 1.0 / (min_proc_time + 1e-6)
+                    
+                    prob = (pheromone[last_op_idx][op_idx] ** self.alpha) * (heuristic ** self.beta)
+                    probabilities.append(prob)
+                
+                # Normalize probabilities
+                total_prob = sum(probabilities)
+                if total_prob > 0:
+                    probabilities = [p / total_prob for p in probabilities]
+                    # Convert probabilities to numpy array and use indices for selection
+                    prob_array = np.array(probabilities)
+                    selected_idx = np.random.choice(len(schedulable), p=prob_array)
+                    selected_op = schedulable[selected_idx]
+                else:
+                    selected_op = random.choice(schedulable)
+            
+            # Select machine with minimum completion time
+            best_machine = min(problem.get_valid_machines(selected_op),
+                             key=lambda m: problem.get_processing_time(selected_op, m))
+            
+            scheduled_ops.append(selected_op)
+            machine_assignment.append(best_machine)
+            scheduled_set.add(selected_op)
+            available_ops.remove(selected_op)
+        
+        solution = Solution(scheduled_ops, machine_assignment)
+        makespan, _, _ = decode_solution(solution, problem)
+        return solution, makespan
+    
+    def _update_pheromones(self, pheromone: np.ndarray, solutions: List[Solution], makespans: List[float], problem: ProblemInstance):
+        """Update pheromone matrix."""
+        # Evaporation
+        pheromone *= (1 - self.rho)
+        
+        # Add pheromone from best solutions
+        best_idx = np.argmin(makespans)
+        best_solution = solutions[best_idx]
+        best_makespan = makespans[best_idx]
+        
+        # Use the original operations list to maintain consistent indexing
+        all_operations = list(problem.all_operations)
+        op_to_idx = {op: i for i, op in enumerate(all_operations)}
+        
+        operations = list(best_solution.operation_sequence)
+        
+        # Add pheromone along the best path
+        for i in range(len(operations) - 1):
+            if operations[i] in op_to_idx and operations[i+1] in op_to_idx:
+                idx1 = op_to_idx[operations[i]]
+                idx2 = op_to_idx[operations[i+1]]
+                pheromone[idx1][idx2] += 1.0 / best_makespan
+
+
+class ParticleSwarmOptimization(BaseSchedulingAlgorithm):
+    """Particle Swarm Optimization algorithm for POFJSP."""
+    
+    def __init__(self, n_particles: int = 30, max_iterations: int = 50,
+                 w: float = 0.7, c1: float = 2.0, c2: float = 2.0):
+        """
+        Initialize PSO algorithm.
+        
+        Args:
+            n_particles: Number of particles
+            max_iterations: Maximum number of iterations
+            w: Inertia weight
+            c1: Cognitive component
+            c2: Social component
+        """
+        self.n_particles = n_particles
+        self.max_iterations = max_iterations
+        self.w = w
+        self.c1 = c1
+        self.c2 = c2
+        
+    @property
+    def algorithm_name(self) -> str:
+        return "PSO"
+    
+    def solve(self, problem: ProblemInstance, timeout: float = 300.0) -> AlgorithmResult:
+        start_time = time.time()
+        
+        try:
+            # Initialize particles
+            particles = []
+            velocities = []
+            personal_best = []
+            personal_best_fitness = []
+            
+            n_ops = len(problem.all_operations)
+            
+            for _ in range(self.n_particles):
+                # Initialize position (priority values for operations)
+                position = np.random.rand(n_ops)
+                velocity = np.random.rand(n_ops) * 0.1
+                
+                particles.append(position)
+                velocities.append(velocity)
+                personal_best.append(position.copy())
+                personal_best_fitness.append(float('inf'))
+            
+            global_best = None
+            global_best_fitness = float('inf')
+            
+            for iteration in range(self.max_iterations):
+                if time.time() - start_time > timeout:
+                    break
+                
+                for i in range(self.n_particles):
+                    # Convert position to solution
+                    solution, makespan = self._position_to_solution(particles[i], problem)
+                    
+                    # Update personal best
+                    if makespan < personal_best_fitness[i]:
+                        personal_best_fitness[i] = makespan
+                        personal_best[i] = particles[i].copy()
+                    
+                    # Update global best
+                    if makespan < global_best_fitness:
+                        global_best_fitness = makespan
+                        global_best = solution
+                
+                # Update velocities and positions
+                for i in range(self.n_particles):
+                    r1, r2 = np.random.rand(), np.random.rand()
+                    
+                    velocities[i] = (self.w * velocities[i] + 
+                                   self.c1 * r1 * (personal_best[i] - particles[i]) +
+                                   self.c2 * r2 * (personal_best[np.argmin(personal_best_fitness)] - particles[i]))
+                    
+                    particles[i] += velocities[i]
+                    particles[i] = np.clip(particles[i], 0, 1)
+            
+            execution_time = time.time() - start_time
+            
+            return AlgorithmResult(
+                algorithm_name=self.algorithm_name,
+                makespan=global_best_fitness,
+                execution_time=execution_time,
+                solution=global_best
+            )
+            
+        except Exception as e:
+            execution_time = time.time() - start_time
+            return AlgorithmResult(
+                algorithm_name=self.algorithm_name,
+                makespan=float('inf'),
+                execution_time=execution_time,
+                additional_metrics={"error": str(e)}
+            )
+    
+    def _position_to_solution(self, position: np.ndarray, problem: ProblemInstance) -> Tuple[Solution, float]:
+        """Convert PSO position to scheduling solution."""
+        operations = list(problem.all_operations)
+        
+        # Schedule operations respecting precedence constraints
+        available_ops = set(operations)
+        scheduled_ops = []
+        scheduled_set = set()
+        machine_assignment = []
+        
+        # Sort by priority but respect precedence
+        remaining_ops = operations.copy()
+        
+        while remaining_ops:
+            # Find schedulable operations
+            schedulable = []
+            for op in remaining_ops:
+                predecessors = problem.predecessors_map.get(op, set())
+                if predecessors.issubset(scheduled_set):
+                    schedulable.append(op)
+            
+            if not schedulable:
+                break
+            
+            # Select highest priority schedulable operation
+            op_idx_map = {op: i for i, op in enumerate(operations)}
+            best_op = max(schedulable, key=lambda op: position[op_idx_map[op]])
+            
+            # Select best machine
+            best_machine = min(problem.get_valid_machines(best_op),
+                             key=lambda m: problem.get_processing_time(best_op, m))
+            
+            scheduled_ops.append(best_op)
+            machine_assignment.append(best_machine)
+            scheduled_set.add(best_op)
+            remaining_ops.remove(best_op)
+        
+        solution = Solution(scheduled_ops, machine_assignment)
+        makespan, _, _ = decode_solution(solution, problem)
+        return solution, makespan
+
+
+# Create instances of specific algorithms for easy access  
+SPTDispatchingRule = lambda: DispatchingRulesAlgorithm("SPT")
+LPTDispatchingRule = lambda: DispatchingRulesAlgorithm("LPT")
+ESTDispatchingRule = lambda: DispatchingRulesAlgorithm("EST")
+LSTDispatchingRule = lambda: DispatchingRulesAlgorithm("LST")
+FIFODispatchingRule = lambda: DispatchingRulesAlgorithm("FIFO")

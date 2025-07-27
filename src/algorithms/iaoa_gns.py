@@ -17,9 +17,9 @@ from typing import List, Tuple, Dict, Optional
 from dataclasses import dataclass
 from sklearn.cluster import KMeans
 
-from problems.problem_instance import Operation, ProblemInstance, Solution
-from algorithms.decoder import decode_solution
-from exceptions import AlgorithmError, ValidationError, ConvergenceError, validate_positive_int
+from src.problems.problem_instance import Operation, ProblemInstance, Solution
+from src.algorithms.decoder import decode_solution
+from src.exceptions import AlgorithmError, ValidationError, ConvergenceError, validate_positive_int
 
 logger = logging.getLogger(__name__)
 
@@ -464,13 +464,19 @@ class IAOAGNSAlgorithm:
         
         logger.info(f"Initialized IAOA+GNS with config: {self.config}")
     
-    def solve(self, problem: ProblemInstance, verbose: bool = False) -> Solution:
+    @property
+    def algorithm_name(self) -> str:
+        """Return the algorithm name."""
+        return "IAOA+GNS"
+    
+    def solve(self, problem: ProblemInstance, verbose: bool = False, timeout: float = 300.0):
         """
         Solve POFJSP instance using IAOA+GNS.
         
         Args:
             problem: Problem instance to solve
             verbose: Enable detailed logging
+            timeout: Maximum execution time in seconds
             
         Returns:
             Best solution found
@@ -480,6 +486,9 @@ class IAOAGNSAlgorithm:
             ConvergenceError: If algorithm doesn't improve
         """
         try:
+            import time
+            start_time = time.time()
+            
             logger.info(f"Starting IAOA+GNS on problem: {problem}")
             
             # Initialize population
@@ -491,7 +500,13 @@ class IAOAGNSAlgorithm:
                 print(f"Initial best makespan: {initial_makespan:.2f}")
             
             # Main optimization loop
+            iteration = 0
             for iteration in range(self.config.max_iterations):
+                # Check timeout
+                if time.time() - start_time > timeout:
+                    if verbose:
+                        print(f"Timeout reached at iteration {iteration}")
+                    break
                 moa = self._calculate_moa(iteration)
                 
                 population = self._evolve_population(
@@ -513,7 +528,23 @@ class IAOAGNSAlgorithm:
                 logger.warning(f"Poor convergence: only {final_improvement:.1%} improvement")
             
             logger.info(f"Algorithm completed. Final makespan: {best_solution.makespan:.2f}")
-            return best_solution
+            
+            # Convert Solution to AlgorithmResult for consistency
+            from src.algorithms.baseline_algorithms import AlgorithmResult
+            execution_time = time.time() - start_time
+            
+            return AlgorithmResult(
+                algorithm_name=self.algorithm_name,
+                makespan=best_solution.makespan,
+                execution_time=execution_time,
+                solution=best_solution,
+                additional_metrics={
+                    'iterations_completed': iteration + 1,
+                    'initial_makespan': initial_makespan,
+                    'improvement_ratio': (initial_makespan - best_solution.makespan) / initial_makespan,
+                    'convergence_achieved': final_improvement >= 0.01
+                }
+            )
             
         except Exception as e:
             raise AlgorithmError(f"IAOA+GNS algorithm failed: {e}")

@@ -3,7 +3,7 @@ import heapq
 from typing import List, Dict, Tuple, Optional, Set
 import logging
 
-from exceptions import (
+from src.exceptions import (
     InvalidMachineAssignmentError, PrecedenceConstraintViolationError,
     ValidationError
 )
@@ -11,7 +11,7 @@ from exceptions import (
 logger = logging.getLogger(__name__)
 
 # Import validation utilities
-from validation import (
+from src.validation import (
     validate_inputs, Validators, validate_numeric_stability, SafeOperationWrapper
 )
 

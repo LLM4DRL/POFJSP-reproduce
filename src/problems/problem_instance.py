@@ -4,7 +4,7 @@ from typing import List, Dict, Set, Optional, Tuple
 import json
 import logging
 
-from exceptions import (
+from src.exceptions import (
     InvalidProblemError, ValidationError, PrecedenceConstraintViolationError,
     validate_positive_int
 )
@@ -12,7 +12,7 @@ from exceptions import (
 logger = logging.getLogger(__name__)
 
 # Import validation utilities
-from validation import (
+from src.validation import (
     validate_problem_instance_inputs, validate_solution_inputs,
     validate_numeric_stability, SafeOperationWrapper
 )
@@ -192,6 +192,94 @@ class ProblemInstance:
             raise ValidationError(f"Machine index {machine_idx} not in range [0, {self.num_machines})")
         
         return self.processing_times[operation.job_idx][operation.op_idx_in_job, machine_idx]
+
+    @classmethod 
+    def from_dict(cls, data: dict) -> 'ProblemInstance':
+        """Create problem instance from dictionary data.
+        
+        Args:
+            data: Dictionary containing problem data
+            
+        Returns:
+            ProblemInstance object
+            
+        Raises:
+            ValidationError: If data format is invalid
+            InvalidProblemError: If problem data is inconsistent
+        """
+        # Validate required fields
+        required_fields = ['num_jobs', 'num_machines', 'jobs']
+        for field in required_fields:
+            if field not in data:
+                raise ValidationError(f"Missing required field: {field}")
+        
+        num_jobs = data['num_jobs']
+        num_machines = data['num_machines']
+        
+        # Validate basic parameters
+        validate_positive_int(num_jobs, 'num_jobs')
+        validate_positive_int(num_machines, 'num_machines')
+        
+        # Process jobs data
+        if len(data['jobs']) != num_jobs:
+            raise ValidationError(f"Expected {num_jobs} jobs, got {len(data['jobs'])}")
+        
+        num_operations_per_job = []
+        processing_times = []
+        predecessors_map = {}
+        successors_map = {}
+        all_operations = []
+        
+        # Build operations and precedence constraints
+        op_id_to_operation = {}  # Map from operation ID to Operation object
+        
+        for job_data in data['jobs']:
+            job_id = job_data['id']
+            operations = job_data['operations']
+            num_operations_per_job.append(len(operations))
+            
+            job_processing_times = np.zeros((len(operations), num_machines))
+            
+            for op_idx, op_data in enumerate(operations):
+                op_id = op_data['id']
+                proc_times = op_data['processing_times']
+                precedence = op_data.get('precedence', [])
+                
+                # Create operation
+                op = Operation(job_id, op_idx)
+                all_operations.append(op)
+                op_id_to_operation[op_id] = op
+                
+                # Set processing times
+                if len(proc_times) != num_machines:
+                    raise ValidationError(f"Operation {op_id} processing times length mismatch")
+                
+                for machine_idx, proc_time in enumerate(proc_times):
+                    if proc_time > 0:  # Only set positive processing times
+                        job_processing_times[op_idx, machine_idx] = proc_time
+                
+                # Initialize maps
+                predecessors_map[op] = set()
+                successors_map[op] = set()
+            
+            processing_times.append(job_processing_times)
+        
+        # Build precedence constraints after all operations are created
+        for job_data in data['jobs']:
+            for op_data in job_data['operations']:
+                op_id = op_data['id']
+                precedence = op_data.get('precedence', [])
+                
+                op = op_id_to_operation[op_id]
+                
+                for pred_id in precedence:
+                    if pred_id in op_id_to_operation:
+                        pred_op = op_id_to_operation[pred_id]
+                        predecessors_map[op].add(pred_op)
+                        successors_map[pred_op].add(op)
+        
+        return cls(num_jobs, num_machines, num_operations_per_job, 
+                  processing_times, predecessors_map, successors_map)
 
     @classmethod
     def from_json(cls, json_path: str) -> 'ProblemInstance':
