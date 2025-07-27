@@ -8,5 +8,8 @@ This package provides visualization tools for:
 - Comparison between different solution methods
 """
 
-from . import gantt
-from . import analysis 
+from src.visualization.gantt import create_gantt_chart
+from src.visualization.analysis import analyze_solution_quality
+from src.visualization.visualize import plot_convergence, plot_schedule
+
+__all__ = ['create_gantt_chart', 'analyze_solution_quality', 'plot_convergence', 'plot_schedule'] 

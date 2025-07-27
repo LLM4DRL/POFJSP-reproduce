@@ -16,7 +16,23 @@
       "Bash(conda activate:*)",
       "Bash(where conda)",
       "Bash(call H:pinokiobinminicondacondabinconda.bat activate quant)",
-      "Bash(H:pinokiobinminicondacondabinconda.bat activate quant)"
+      "Bash(H:pinokiobinminicondacondabinconda.bat activate quant)",
+      "Bash(\"H:\\pinokio\\bin\\miniconda\\Scripts\\pip.exe\" install numpy torch --extra-index-url https://download.pytorch.org/whl/cpu)",
+      "Bash(PYTHONPATH=/Users/simonwsy/workspace/POFJSP-reproduce/src python -m pytest tests/ -v --tb=short)",
+      "Bash(PYTHONPATH=./src python -c \"from src.algorithms.iaoa_gns import IAOAGNSAlgorithm; print(''Import successful'')\")",
+      "Bash(PYTHONPATH=./src python scripts/repo_health_check.py)",
+      "Bash(PYTHONPATH=./src python examples/comprehensive_demo.py)",
+      "Bash(git checkout:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(gh pr create:*)",
+      "Bash(timeout:*)",
+      "Bash(# Move LaTeX reports to reports/latex/\nmv *.tex reports/latex/ 2>/dev/null || true\n\n# Move JSON results to results/benchmark/\nmv *results*.json results/benchmark/ 2>/dev/null || true\nmv benchmark_results.json results/benchmark/ 2>/dev/null || true\n\n# Move test and temporary files to temp/\nmv test_*.py temp/ 2>/dev/null || true\nmv test_*/ temp/ 2>/dev/null || true\n\n# Clean up any other temporary files\nmv *.py temp/ 2>/dev/null || find . -maxdepth 1 -name \"\"*.py\"\" -not -name \"\"latex_report_generator.py\"\" -not -name \"\"demo_comprehensive.py\"\" -not -name \"\"comprehensive_benchmark.py\"\" -not -name \"\"run_production_benchmark.py\"\" -not -name \"\"main.py\"\" -exec mv {} temp/ \\;)",
+      "Bash(# Clean up any remaining temporary files in root\nfind . -maxdepth 1 -type f -name \"\"*.log\"\" -delete\nfind . -maxdepth 1 -type f -name \"\"*.aux\"\" -delete\nfind . -maxdepth 1 -type f -name \"\"*.out\"\" -delete\n\n# Final project structure check\necho \"\"📁 Final Project Structure:\"\"\necho \"\"==========================\"\"\nls -la | head -20)",
+      "Bash(# Check where the original latex generator is\nfind . -name \"\"latex_report_generator.py\"\" -type f 2>/dev/null\n\n# Also move any other reporting utilities to the proper location\nfind . -maxdepth 1 -name \"\"*benchmark*.py\"\" -type f -exec mv {} tools/reporting/ \\; 2>/dev/null || true)",
+      "Bash(# Move the original latex generator from temp to tools\nmv temp/latex_report_generator.py tools/reporting/\n\n# Move benchmark scripts to tools directory\nmv comprehensive_benchmark.py tools/reporting/ 2>/dev/null || true\nmv run_production_benchmark.py tools/reporting/ 2>/dev/null || true\n\n# Create a tools README\ncat > tools/README.md << ''EOF''\n# Tools Directory\n\nThis directory contains utility scripts and tools for the POFJSP system.\n\n## Reporting Tools (`reporting/`)\n\n- `enhanced_latex_generator.py` - Advanced LaTeX report generator with comprehensive visualizations\n- `latex_report_generator.py` - Basic LaTeX report generator\n- `comprehensive_benchmark.py` - Comprehensive benchmarking system\n- `run_production_benchmark.py` - Production-level benchmark runner\n\n## Usage\n\n```bash\n# Generate comprehensive PDF report with visualizations\ncd tools/reporting\npython enhanced_latex_generator.py\n\n# Run basic benchmarks\npython comprehensive_benchmark.py\n\n# Run production benchmarks\npython run_production_benchmark.py\n```\nEOF)",
+      "Bash(# First, let''s examine what we have in temp/\necho \"\"📋 Analyzing temp/ directory contents...\"\"\necho \"\"\"\"\n\n# Check if any of these are duplicates of existing files\necho \"\"🔍 Checking for duplicates...\"\"\nfor file in demo_comprehensive.py main.py; do\n    if [ -f \"\"temp/$file\"\" ] && [ -f \"\"$file\"\" ]; then\n        echo \"\"⚠️  Duplicate found: $file\"\"\n        diff \"\"temp/$file\"\" \"\"$file\"\" > /dev/null\n        if [ $? -eq 0 ]; then\n            echo \"\"   ✅ Files are identical - safe to remove temp version\"\"\n        else\n            echo \"\"   ⚠️  Files differ - need to review\"\"\n        fi\n    fi\ndone)"
     ],
     "deny": []
   }

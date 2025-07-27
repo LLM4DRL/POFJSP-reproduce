@@ -1,0 +1,314 @@
+{
+  "metadata": {
+    "num_algorithms": 10,
+    "num_results": 15,
+    "generation_date": "2025-07-27T14:22:19.559537"
+  },
+  "algorithms": {
+    "genetic": {
+      "full_name": "Genetic Algorithm",
+      "category": "Evolutionary Algorithm",
+      "description": "A population-based metaheuristic inspired by natural selection and genetic inheritance.",
+      "parameters": {
+        "population_size": 50,
+        "crossover_rate": 0.8,
+        "mutation_rate": 0.1
+      }
+    },
+    "simulated_annealing": {
+      "full_name": "Simulated Annealing",
+      "category": "Physics-Inspired Metaheuristic",
+      "description": "A probabilistic technique inspired by the annealing process in metallurgy.",
+      "parameters": {
+        "initial_temperature": 1000,
+        "cooling_rate": 0.95,
+        "min_temperature": 0.1
+      }
+    },
+    "aco": {
+      "full_name": "Ant Colony Optimization",
+      "category": "Swarm Intelligence",
+      "description": "A probabilistic technique inspired by the foraging behavior of ants.",
+      "parameters": {
+        "n_ants": 20,
+        "pheromone_evaporation": 0.1,
+        "alpha": 1.0,
+        "beta": 2.0
+      }
+    },
+    "pso": {
+      "full_name": "Particle Swarm Optimization",
+      "category": "Swarm Intelligence",
+      "description": "A computational method inspired by the social behavior of bird flocking.",
+      "parameters": {
+        "n_particles": 30,
+        "inertia_weight": 0.7,
+        "c1": 1.5,
+        "c2": 1.5
+      }
+    },
+    "differential_evolution": {
+      "full_name": "Differential Evolution",
+      "category": "Evolutionary Algorithm",
+      "description": "A population-based optimization algorithm using differential mutation.",
+      "parameters": {
+        "population_size": 40,
+        "crossover_rate": 0.7,
+        "mutation_factor": 0.8
+      }
+    },
+    "vns": {
+      "full_name": "Variable Neighborhood Search",
+      "category": "Local Search",
+      "description": "A metaheuristic that systematically changes neighborhoods in search.",
+      "parameters": {
+        "k_max": 5,
+        "max_iterations": 100
+      }
+    },
+    "tabu_search": {
+      "full_name": "Tabu Search",
+      "category": "Local Search",
+      "description": "A metaheuristic that uses memory structures to avoid cycling.",
+      "parameters": {
+        "tabu_tenure": 10,
+        "max_iterations": 100
+      }
+    },
+    "hybrid_ga_ls": {
+      "full_name": "Hybrid Genetic Algorithm with Local Search",
+      "category": "Hybrid Metaheuristic",
+      "description": "Combines genetic algorithm with local search for enhanced performance.",
+      "parameters": {
+        "population_size": 30,
+        "local_search_prob": 0.3
+      }
+    },
+    "memory_sa": {
+      "full_name": "Memory-based Simulated Annealing",
+      "category": "Hybrid Metaheuristic",
+      "description": "Enhanced simulated annealing with memory-based solution management.",
+      "parameters": {
+        "memory_size": 10,
+        "diversification_rate": 0.2
+      }
+    },
+    "greedy": {
+      "full_name": "Greedy Construction Heuristic",
+      "category": "Constructive Heuristic",
+      "description": "A simple greedy approach for baseline comparison.",
+      "parameters": {}
+    }
+  },
+  "results": [
+    {
+      "algorithm": "genetic",
+      "problem": "test_1",
+      "makespan": 6.0,
+      "execution_time": 0.004456043243408203,
+      "memory_usage": 0.0,
+      "iterations": 0,
+      "convergence": false,
+      "additional_metrics": {
+        "generations": 5
+      }
+    },
+    {
+      "algorithm": "aco",
+      "problem": "test_1",
+      "makespan": Infinity,
+      "execution_time": 0.0006363391876220703,
+      "memory_usage": 0.0,
+      "iterations": 0,
+      "convergence": false,
+      "additional_metrics": {
+        "error": "a must be 1-dimensional"
+      }
+    },
+    {
+      "algorithm": "pso",
+      "problem": "test_1",
+      "makespan": 6.0,
+      "execution_time": 0.0043468475341796875,
+      "memory_usage": 0.0,
+      "iterations": 0,
+      "convergence": false,
+      "additional_metrics": null
+    },
+    {
+      "algorithm": "differential_evolution",
+      "problem": "test_1",
+      "makespan": 6.0,
+      "execution_time": 0.004994869232177734,
+      "memory_usage": 0.0,
+      "iterations": 0,
+      "convergence": false,
+      "additional_metrics": null
+    },
+    {
+      "algorithm": "vns",
+      "problem": "test_1",
+      "makespan": 5.0,
+      "execution_time": 0.23817920684814453,
+      "memory_usage": 0.0,
+      "iterations": 0,
+      "convergence": false,
+      "additional_metrics": null
+    },
+    {
+      "algorithm": "genetic",
+      "problem": "test_2",
+      "makespan": 13.0,
+      "execution_time": 0.00798487663269043,
+      "memory_usage": 0.0,
+      "iterations": 0,
+      "convergence": false,
+      "additional_metrics": {
+        "generations": 5
+      }
+    },
+    {
+      "algorithm": "aco",
+      "problem": "test_2",
+      "makespan": Infinity,
+      "execution_time": 9.489059448242188e-05,
+      "memory_usage": 0.0,
+      "iterations": 0,
+      "convergence": false,
+      "additional_metrics": {
+        "error": "a must be 1-dimensional"
+      }
+    },
+    {
+      "algorithm": "pso",
+      "problem": "test_2",
+      "makespan": 15.0,
+      "execution_time": 0.008486032485961914,
+      "memory_usage": 0.0,
+      "iterations": 0,
+      "convergence": false,
+      "additional_metrics": null
+    },
+    {
+      "algorithm": "differential_evolution",
+      "problem": "test_2",
+      "makespan": 15.0,
+      "execution_time": 0.010107994079589844,
+      "memory_usage": 0.0,
+      "iterations": 0,
+      "convergence": false,
+      "additional_metrics": null
+    },
+    {
+      "algorithm": "vns",
+      "problem": "test_2",
+      "makespan": 8.0,
+      "execution_time": 1.7645301818847656,
+      "memory_usage": 0.0,
+      "iterations": 0,
+      "convergence": false,
+      "additional_metrics": null
+    },
+    {
+      "algorithm": "genetic",
+      "problem": "test_3",
+      "makespan": 7.0,
+      "execution_time": 0.006148099899291992,
+      "memory_usage": 0.0,
+      "iterations": 0,
+      "convergence": false,
+      "additional_metrics": {
+        "generations": 5
+      }
+    },
+    {
+      "algorithm": "aco",
+      "problem": "test_3",
+      "makespan": Infinity,
+      "execution_time": 0.00010180473327636719,
+      "memory_usage": 0.0,
+      "iterations": 0,
+      "convergence": false,
+      "additional_metrics": {
+        "error": "a must be 1-dimensional"
+      }
+    },
+    {
+      "algorithm": "pso",
+      "problem": "test_3",
+      "makespan": 14.0,
+      "execution_time": 0.007306098937988281,
+      "memory_usage": 0.0,
+      "iterations": 0,
+      "convergence": false,
+      "additional_metrics": null
+    },
+    {
+      "algorithm": "differential_evolution",
+      "problem": "test_3",
+      "makespan": 14.0,
+      "execution_time": 0.008216619491577148,
+      "memory_usage": 0.0,
+      "iterations": 0,
+      "convergence": false,
+      "additional_metrics": null
+    },
+    {
+      "algorithm": "vns",
+      "problem": "test_3",
+      "makespan": 7.0,
+      "execution_time": 0.9444141387939453,
+      "memory_usage": 0.0,
+      "iterations": 0,
+      "convergence": false,
+      "additional_metrics": null
+    }
+  ],
+  "statistics": {
+    "genetic": {
+      "count": 3,
+      "avg_makespan": 8.666666666666666,
+      "std_makespan": 3.7859388972001824,
+      "min_makespan": 6.0,
+      "max_makespan": 13.0,
+      "avg_time": 0.006196339925130208,
+      "convergence_rate": 0.0
+    },
+    "aco": {
+      "count": 3,
+      "avg_makespan": Infinity,
+      "std_makespan": 0.0,
+      "min_makespan": Infinity,
+      "max_makespan": Infinity,
+      "avg_time": 0.0002776781717936198,
+      "convergence_rate": 0.0
+    },
+    "pso": {
+      "count": 3,
+      "avg_makespan": 11.666666666666666,
+      "std_makespan": 4.932882862316247,
+      "min_makespan": 6.0,
+      "max_makespan": 15.0,
+      "avg_time": 0.006712992986043294,
+      "convergence_rate": 0.0
+    },
+    "differential_evolution": {
+      "count": 3,
+      "avg_makespan": 11.666666666666666,
+      "std_makespan": 4.932882862316247,
+      "min_makespan": 6.0,
+      "max_makespan": 15.0,
+      "avg_time": 0.007773160934448242,
+      "convergence_rate": 0.0
+    },
+    "vns": {
+      "count": 3,
+      "avg_makespan": 6.666666666666667,
+      "std_makespan": 1.5275252316519468,
+      "min_makespan": 5.0,
+      "max_makespan": 8.0,
+      "avg_time": 0.9823745091756185,
+      "convergence_rate": 0.0
+    }
+  }
+}

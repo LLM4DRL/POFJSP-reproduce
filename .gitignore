@@ -76,16 +76,45 @@ multirun/
 figures/results/benchmark/
 figures/results/
 
-# Large data files
+# Large data files (specifically excluding large files identified by agents)
 *.pkl
 *.npy
 *.npz
-*.parquet
+*.parquet  # Excludes 155MB+ parquet files
 *.feather
 *.h5
 *.hdf5
 *.dta
+
+# Large log files (identified as memory issue)
+*.log
+training_*.log
+performance_*.log
+**/training.log
+**/performance.log
+
+# TensorBoard logs (can be large)
+**/tensorboard/
+**/runs/
+**/tb_logs/
+
+# Model checkpoints (can be very large)
+*.pth
+*.pt
+*.checkpoint
+*.ckpt
+checkpoints/
+saved_models/
+
+# GPU memory profiling output
+*.prof
+*.nvprof
+*.nsys-rep
+
+# Images and PDFs (keeping selective exclusions)
 *.png
+*.jpg
+*.jpeg
 *.pdf
 
 # Allow all PDFs in paper documentation

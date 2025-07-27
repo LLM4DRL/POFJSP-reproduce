@@ -11,9 +11,12 @@ import torch
 from typing import Dict, List, Tuple, Optional, Any
 import networkx as nx
 from collections import defaultdict
+from dataclasses import dataclass
+import threading
 
 from src.problems.problem_instance import ProblemInstance, Solution
 from src.rl.models.graph_cnn import GraphCNN
+from src.exceptions import RLTrainingError
 
 
 class POFJSPEnv(gym.Env):
@@ -240,7 +243,19 @@ class POFJSPEnv(gym.Env):
             truncated: Whether episode was truncated
             info: Additional information
         """
-        job_idx, machine_idx = action
+        # Validate and convert action to integers
+        try:
+            job_idx, machine_idx = action
+            job_idx = int(job_idx)
+            machine_idx = int(machine_idx)
+        except (ValueError, TypeError):
+            # Invalid action format
+            reward = -10.0
+            terminated = False
+            truncated = self.current_time >= self.time_limit
+            state = self._get_state()
+            info = {'invalid_action': True, 'error': 'Invalid action format', 'makespan': self._get_makespan()}
+            return state, reward, terminated, truncated, info
         
         # Find the operation to schedule
         op_to_schedule = None
@@ -278,21 +293,17 @@ class POFJSPEnv(gym.Env):
             }
             return state, reward, terminated, truncated, info
         
-        # Schedule the operation
+        # Schedule the operation with atomic state update
         start_time = max(self.current_time, self.machine_ready_times[machine_idx], self.job_ready_times[job_idx])
         completion_time = start_time + processing_time
         
-        # Update state
-        self.scheduled_operations.add(op_to_schedule)
-        self.operation_start_times[op_to_schedule] = start_time
-        self.operation_completion_times[op_to_schedule] = completion_time
-        self.operation_machine_assignments[op_to_schedule] = machine_idx
+        # Create new state atomically to prevent race conditions
+        new_state = self._create_atomic_state_update(
+            op_to_schedule, machine_idx, job_idx, start_time, completion_time
+        )
         
-        self.machine_ready_times[machine_idx] = completion_time
-        self.job_ready_times[job_idx] = completion_time
-        
-        # Advance time if necessary
-        self.current_time = max(self.current_time, completion_time)
+        # Apply all state changes atomically
+        self._apply_state_update(new_state)
         
         # Check if all operations are scheduled
         all_scheduled = len(self.scheduled_operations) == self.num_operations
@@ -381,6 +392,65 @@ class POFJSPEnv(gym.Env):
         
         return solution
     
+    @dataclass
+    class StateUpdate:
+        """Atomic state update container."""
+        scheduled_operations: set
+        operation_start_times: dict
+        operation_completion_times: dict
+        operation_machine_assignments: dict
+        machine_ready_times: np.ndarray
+        job_ready_times: np.ndarray
+        current_time: float
+    
+    def _create_atomic_state_update(self, 
+                                   operation: Tuple[int, int], 
+                                   machine_idx: int, 
+                                   job_idx: int,
+                                   start_time: float, 
+                                   completion_time: float) -> 'StateUpdate':
+        """Create atomic state update to prevent race conditions."""
+        # Create copies of current state
+        new_scheduled_ops = self.scheduled_operations.copy()
+        new_start_times = self.operation_start_times.copy()
+        new_completion_times = self.operation_completion_times.copy()
+        new_machine_assignments = self.operation_machine_assignments.copy()
+        new_machine_ready_times = self.machine_ready_times.copy()
+        new_job_ready_times = self.job_ready_times.copy()
+        
+        # Apply updates to copies
+        new_scheduled_ops.add(operation)
+        new_start_times[operation] = start_time
+        new_completion_times[operation] = completion_time
+        new_machine_assignments[operation] = machine_idx
+        new_machine_ready_times[machine_idx] = completion_time
+        new_job_ready_times[job_idx] = completion_time
+        new_current_time = max(self.current_time, completion_time)
+        
+        return self.StateUpdate(
+            scheduled_operations=new_scheduled_ops,
+            operation_start_times=new_start_times,
+            operation_completion_times=new_completion_times,
+            operation_machine_assignments=new_machine_assignments,
+            machine_ready_times=new_machine_ready_times,
+            job_ready_times=new_job_ready_times,
+            current_time=new_current_time
+        )
+    
+    def _apply_state_update(self, state_update: 'StateUpdate') -> None:
+        """Apply atomic state update."""
+        try:
+            # Apply all updates atomically
+            self.scheduled_operations = state_update.scheduled_operations
+            self.operation_start_times = state_update.operation_start_times
+            self.operation_completion_times = state_update.operation_completion_times
+            self.operation_machine_assignments = state_update.operation_machine_assignments
+            self.machine_ready_times = state_update.machine_ready_times
+            self.job_ready_times = state_update.job_ready_times
+            self.current_time = state_update.current_time
+        except Exception as e:
+            raise RLTrainingError("state_update", f"Failed to apply atomic state update: {e}")
+    
     def render(self, mode: str = 'human') -> None:
         """Render current state."""
         print(f"Current time: {self.current_time:.2f}")
@@ -393,3 +463,15 @@ class POFJSPEnv(gym.Env):
             print(f"Machine {machine_idx}: {status} (ready at {self.machine_ready_times[machine_idx]:.2f})")
         
         print("-" * 50)
+    
+    def _get_available_operations(self) -> List[Tuple[int, int]]:
+        """Get list of operations that can be scheduled next."""
+        available_ops = []
+        
+        for job_idx in range(self.num_jobs):
+            for op_idx in range(self.problem.num_operations_per_job[job_idx]):
+                op = (job_idx, op_idx)
+                if op not in self.scheduled_operations and self._is_operation_ready(op):
+                    available_ops.append(op)
+        
+        return available_ops

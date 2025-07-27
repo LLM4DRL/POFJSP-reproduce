@@ -1,34 +1,78 @@
 import numpy as np
 import heapq
+from typing import List, Dict, Tuple, Optional, Set
+import logging
 
-def decode_solution(solution, problem, verbose=False):
+from src.exceptions import (
+    InvalidMachineAssignmentError, PrecedenceConstraintViolationError,
+    ValidationError
+)
+
+logger = logging.getLogger(__name__)
+
+# Import validation utilities
+from src.validation import (
+    validate_inputs, Validators, validate_numeric_stability, SafeOperationWrapper
+)
+
+@SafeOperationWrapper("decode_solution")
+@validate_inputs(
+    solution=lambda x: x is not None,
+    problem=lambda x: x is not None and hasattr(x, 'num_machines'),
+    verbose=lambda x: isinstance(x, bool)
+)
+def decode_solution(solution, problem, verbose: bool = False) -> Tuple[float, Dict, List]:
     """
-    Decodes a solution to calculate makespan and schedule details.
-    This uses an insertion-based strategy respecting precedence constraints.
-    """
-    # Create a simple Operation class for consistent handling
-    class SimpleOperation:
-        def __init__(self, job_idx, op_idx_in_job):
-            self.job_idx = job_idx
-            self.op_idx_in_job = op_idx_in_job
-        
-        def __hash__(self):
-            return hash((self.job_idx, self.op_idx_in_job))
-        
-        def __eq__(self, other):
-            return (self.job_idx, self.op_idx_in_job) == (other.job_idx, other.op_idx_in_job)
-        
-        def __repr__(self):
-            return f"Operation({self.job_idx}, {self.op_idx_in_job})"
+    Decodes a solution to calculate makespan and schedule details with validation.
     
-    # Convert operation_sequence to SimpleOperation objects
-    operation_objects = []
-    for op in solution.operation_sequence:
-        if hasattr(op, 'job_idx') and hasattr(op, 'op_idx_in_job'):
-            operation_objects.append(SimpleOperation(op.job_idx, op.op_idx_in_job))
-        else:
-            # Handle tuple format (job_id, op_id)
-            operation_objects.append(SimpleOperation(op[0], op[1]))
+    Args:
+        solution: Solution object with operation sequence and machine assignments
+        problem: Problem instance with constraints and processing times
+        verbose: Enable detailed logging
+        
+    Returns:
+        Tuple of (makespan, schedule_details, machine_schedules)
+        
+    Raises:
+        ValidationError: If solution or problem is invalid
+        InvalidMachineAssignmentError: If operation assigned to invalid machine
+        PrecedenceConstraintViolationError: If precedence constraints violated
+    """
+    # Input validation
+    if solution is None or problem is None:
+        raise ValidationError("solution and problem cannot be None")
+    
+    if not hasattr(solution, 'operation_sequence') or not hasattr(solution, 'machine_assignment'):
+        raise ValidationError("solution must have operation_sequence and machine_assignment")
+    
+    if len(solution.operation_sequence) != len(solution.machine_assignment):
+        raise ValidationError(
+            f"Sequence length {len(solution.operation_sequence)} != assignment length {len(solution.machine_assignment)}"
+        )
+    
+    try:
+        return _decode_solution_implementation(solution, problem, verbose)
+    except Exception as e:
+        logger.error(f"Decoding failed: {e}")
+        # Return safe fallback values
+        solution.makespan = float('inf')
+        solution.schedule_details = {}
+        solution.machine_schedules = [[] for _ in range(problem.num_machines)]
+        return float('inf'), {}, [[] for _ in range(problem.num_machines)]
+
+
+def _decode_solution_implementation(solution, problem, verbose: bool) -> Tuple[float, Dict, List]:
+    # Use safe operation conversion with validation
+    try:
+        operation_objects = _convert_operations_safely(solution.operation_sequence, problem)
+    except Exception as e:
+        raise ValidationError(f"Failed to convert operations: {e}")
+    
+    # Validate all machine assignments
+    for i, machine_idx in enumerate(solution.machine_assignment):
+        if not isinstance(machine_idx, int) or not (0 <= machine_idx < problem.num_machines):
+            op = operation_objects[i] if i < len(operation_objects) else f"op_{i}"
+            raise InvalidMachineAssignmentError(op, machine_idx, "Invalid machine index")
     
     # schedule_details: {SimpleOperation: {'start_time', 'end_time', 'machine'}}
     schedule_details = {}
@@ -51,13 +95,24 @@ def decode_solution(solution, problem, verbose=False):
         else:
             op_to_predecessors[op] = []
     
+    # Validate precedence constraints before processing
+    _validate_precedence_constraints(operation_objects, problem)
+    
     # Find operations with no predecessors
     ready_operations = [op for op in operation_objects if in_degree[op] == 0]
     
+    if not ready_operations:
+        raise PrecedenceConstraintViolationError(
+            "No operations without predecessors", list(operation_objects)
+        )
+    
     # Process operations in topological order
     processed_ops = 0
+    max_iterations = len(operation_objects) * 2  # Prevent infinite loops
+    iterations = 0
     
-    while ready_operations and processed_ops < len(operation_objects):
+    while ready_operations and processed_ops < len(operation_objects) and iterations < max_iterations:
+        iterations += 1
         current_op = ready_operations.pop(0)
         
         if current_op in scheduled_operations:
@@ -68,13 +123,16 @@ def decode_solution(solution, problem, verbose=False):
         assigned_machine = solution.machine_assignment[op_idx]
         proc_time = problem.processing_times[current_op.job_idx][current_op.op_idx_in_job, assigned_machine]
 
-        if proc_time == np.inf:
-            if verbose:
-                print(f"ERROR: Invalid processing time for op={current_op}, machine={assigned_machine}")
-            solution.makespan = float('inf')
-            solution.schedule_details = {}
-            solution.machine_schedules = [[] for _ in range(problem.num_machines)]
-            return float('inf'), {}, [[] for _ in range(problem.num_machines)]
+        # Validate machine assignment
+        if not (0 <= assigned_machine < problem.num_machines):
+            raise InvalidMachineAssignmentError(
+                current_op, assigned_machine, "Machine index out of range"
+            )
+        
+        if proc_time == np.inf or proc_time < 0:
+            raise InvalidMachineAssignmentError(
+                current_op, assigned_machine, proc_time
+            )
 
         # Determine earliest start time based on predecessors
         earliest_start_due_to_predecessors = 0
@@ -168,3 +226,85 @@ def decode_solution(solution, problem, verbose=False):
     solution.schedule_details = schedule_details
     solution.machine_schedules = final_machine_schedules_detailed
     return makespan, schedule_details, final_machine_schedules_detailed
+
+
+class SimpleOperation:
+    """Simple operation class for consistent handling."""
+    
+    def __init__(self, job_idx: int, op_idx_in_job: int):
+        self.job_idx = job_idx
+        self.op_idx_in_job = op_idx_in_job
+    
+    def __hash__(self):
+        return hash((self.job_idx, self.op_idx_in_job))
+    
+    def __eq__(self, other):
+        if not isinstance(other, SimpleOperation):
+            return False
+        return (self.job_idx, self.op_idx_in_job) == (other.job_idx, other.op_idx_in_job)
+    
+    def __repr__(self):
+        return f"Operation({self.job_idx}, {self.op_idx_in_job})"
+
+
+def _convert_operations_safely(operation_sequence, problem) -> List[SimpleOperation]:
+    """Convert operation sequence to SimpleOperation objects with validation."""
+    operation_objects = []
+    
+    for i, op in enumerate(operation_sequence):
+        try:
+            if hasattr(op, 'job_idx') and hasattr(op, 'op_idx_in_job'):
+                job_idx, op_idx = op.job_idx, op.op_idx_in_job
+            elif isinstance(op, (tuple, list)) and len(op) == 2:
+                job_idx, op_idx = op[0], op[1]
+            else:
+                raise ValidationError(f"Invalid operation format at index {i}: {op}")
+            
+            # Validate indices
+            if not isinstance(job_idx, int) or not isinstance(op_idx, int):
+                raise ValidationError(f"Operation indices must be integers: {op}")
+            
+            if not (0 <= job_idx < problem.num_jobs):
+                raise ValidationError(f"Invalid job index {job_idx} at position {i}")
+            
+            if not (0 <= op_idx < problem.num_operations_per_job[job_idx]):
+                raise ValidationError(f"Invalid operation index {op_idx} for job {job_idx} at position {i}")
+            
+            operation_objects.append(SimpleOperation(job_idx, op_idx))
+            
+        except Exception as e:
+            raise ValidationError(f"Failed to convert operation at index {i}: {e}")
+    
+    return operation_objects
+
+
+def _validate_precedence_constraints(operation_objects: List[SimpleOperation], problem) -> None:
+    """Validate that precedence constraints can be satisfied."""
+    operation_set = {(op.job_idx, op.op_idx_in_job) for op in operation_objects}
+    
+    # Check if all required operations are present
+    expected_operations = {(op.job_idx, op.op_idx_in_job) for op in problem.all_operations}
+    
+    if operation_set != expected_operations:
+        missing = expected_operations - operation_set
+        extra = operation_set - expected_operations
+        
+        error_msg = []
+        if missing:
+            error_msg.append(f"Missing operations: {missing}")
+        if extra:
+            error_msg.append(f"Extra operations: {extra}")
+        
+        raise ValidationError("; ".join(error_msg))
+    
+    # Check for unsatisfiable precedence constraints
+    for op_key, predecessors in problem.predecessors_map.items():
+        if op_key not in operation_set:
+            continue
+        
+        for pred_key in predecessors:
+            if pred_key not in operation_set:
+                raise PrecedenceConstraintViolationError(
+                    f"Operation {op_key}", 
+                    [f"Missing predecessor {pred_key}"]
+                )
